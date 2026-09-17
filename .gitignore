@@ -12,3 +12,6 @@ env/
 .vscode/
 .idea/
 .DS_Store
+
+# Uploads
+uploads/
