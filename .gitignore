@@ -15,3 +15,10 @@ env/
 
 # Uploads
 uploads/
+
+.venv/
+venv/
+__pycache__/
+.env
+uploads/
+*.pyc
