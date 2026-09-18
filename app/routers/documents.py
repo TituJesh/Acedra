@@ -1,3 +1,8 @@
+from app.services.s3_service import (
+    upload_file_to_s3,
+    delete_file_from_s3,
+    generate_download_url
+)
 from pathlib import Path
 from uuid import uuid4
 
@@ -16,9 +21,6 @@ router = APIRouter(
     tags=["Documents"]
 )
 
-
-UPLOAD_DIR = Path("uploads")
-UPLOAD_DIR.mkdir(exist_ok=True)
 
 
 def get_db():
@@ -57,16 +59,20 @@ def upload_document(
         )
 
     unique_filename = f"{uuid4()}_{file.filename}"
-    file_path = UPLOAD_DIR / unique_filename
 
-    with file_path.open("wb") as buffer:
-        buffer.write(file.file.read())
+    s3_key = f"students/{student_id}/{unique_filename}"
+
+    upload_file_to_s3(
+        file.file,
+        s3_key,
+        file.content_type
+    )
 
     document = Document(
         student_id=student_id,
         file_name=file.filename,
         file_type=file.content_type,
-        s3_key=str(file_path)
+        s3_key=s3_key
     )
 
     db.add(document)
@@ -121,6 +127,32 @@ def get_document(
 
     return document
 
+@router.get("/{document_id}/download")
+def download_document(
+    document_id: int,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    document = db.query(Document).filter(
+        Document.id == document_id
+    ).first()
+
+    if document is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Document not found"
+        )
+
+    download_url = generate_download_url(
+        document.s3_key
+    )
+
+    return {
+        "file_name": document.file_name,
+        "download_url": download_url,
+        "expires_in": 300
+    }
+
 @router.delete("/{document_id}")
 def delete_document(
     document_id: int,
@@ -137,10 +169,7 @@ def delete_document(
             detail="Document not found"
         )
 
-    file_path = Path(document.s3_key)
-
-    if file_path.exists():
-        file_path.unlink()
+    delete_file_from_s3(document.s3_key)
 
     db.delete(document)
     db.commit()
