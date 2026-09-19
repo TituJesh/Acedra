@@ -11,6 +11,7 @@ from app.schemas.student import (
     StudentResponse
 )
 from app.dependencies import get_current_user, require_admin
+from app.utils.logger import logger
 
 
 router = APIRouter(
@@ -121,6 +122,8 @@ def create_student(
     db.add(new_student)
     db.commit()
     db.refresh(new_student)
+
+    logger.info(f"Student created: student_id={new_student.student_id}")
 
     return new_student
 
