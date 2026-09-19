@@ -14,6 +14,7 @@ from app.dependencies import get_current_user, require_admin
 from app.models.document import Document
 from app.models.student import Student
 from app.schemas.document import DocumentResponse
+from app.utils.logger import logger
 
 
 router = APIRouter(
@@ -78,6 +79,11 @@ def upload_document(
     db.add(document)
     db.commit()
     db.refresh(document)
+
+    logger.info(
+    f"Document uploaded: student_id={student_id}, "
+    f"file_name={document.file_name}"
+)
 
     return document
 
@@ -173,6 +179,10 @@ def delete_document(
 
     db.delete(document)
     db.commit()
+
+    logger.info(
+    f"Document deleted: document_id={document_id}"
+    )
 
     return {
         "message": "Document deleted successfully"
