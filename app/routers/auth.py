@@ -8,6 +8,7 @@ from app.schemas.auth import UserRegister, UserLogin, TokenResponse
 from app.utils.security import hash_password, verify_password
 from app.utils.jwt import create_access_token
 from app.models.user import User
+from app.utils.logger import logger
 
 def get_db():
     db = SessionLocal()
@@ -41,6 +42,8 @@ def register(
     db.commit()
     db.refresh(new_user)
 
+    logger.info(f"User registered: user_id={new_user.id}, username={new_user.username}")
+
     return {
         "message": "User registered successfully",
         "user_id": new_user.id,
@@ -61,6 +64,7 @@ def login(
     )
 
     if existing_user is None:
+        logger.warning(f"Failed login attempt: username '{form_data.username}' not found")
         raise HTTPException(
             status_code=401,
             detail="Invalid username or password"
@@ -72,6 +76,7 @@ def login(
     )
 
     if not password_is_correct:
+        logger.warning(f"Failed login attempt: incorrect password for user_id={existing_user.id}")
         raise HTTPException(
             status_code=401,
             detail="Invalid username or password"
@@ -83,6 +88,8 @@ def login(
             "role": existing_user.role
         }
     )
+
+    logger.info(f"User logged in successfully: user_id={existing_user.id}, username={existing_user.username}")
 
     return {
         "access_token": access_token,
