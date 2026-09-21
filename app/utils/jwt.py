@@ -1,9 +1,13 @@
 from datetime import datetime, timedelta, timezone
+import os
 
 from jose import jwt
 
 
-SECRET_KEY = "acedra-development-secret-key"
+SECRET_KEY = os.getenv(
+    "SECRET_KEY",
+    "acedra-development-secret-key"
+)
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
