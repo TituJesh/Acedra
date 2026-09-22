@@ -27,11 +27,6 @@
 
 </div>
 
-> **Interactive API Documentation & Quick Links:**
-> - **Swagger UI Explorer**: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
-> - **ReDoc Specification**: [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc)
-> - **Source Repository**: [https://github.com/TituJesh/Acedra](https://github.com/TituJesh/Acedra)
-
 ---
 
 ## Table of Contents
