@@ -273,6 +273,8 @@ def update_student(
     db.commit()
     db.refresh(student)
 
+    logger.info(f"Student updated: student_id={student.student_id}")
+
     return student
 
 
@@ -296,6 +298,8 @@ def delete_student(
 
     db.delete(student)
     db.commit()
+
+    logger.info(f"Student deleted: student_id={student.student_id}")
 
     return {
         "message": "Student deleted successfully"

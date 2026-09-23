@@ -81,9 +81,9 @@ def upload_document(
     db.refresh(document)
 
     logger.info(
-    f"Document uploaded: student_id={student_id}, "
-    f"file_name={document.file_name}"
-)
+        f"Document uploaded: student_id={student_id}, "
+        f"file_name={document.file_name}"
+    )
 
     return document
 
@@ -181,7 +181,7 @@ def delete_document(
     db.commit()
 
     logger.info(
-    f"Document deleted: document_id={document_id}"
+        f"Document deleted: document_id={document_id}"
     )
 
     return {
