@@ -10,6 +10,7 @@ from app.schemas.department import (
     DepartmentResponse
 )
 from app.dependencies import get_current_user, require_admin
+from app.utils.logger import logger
 
 
 router = APIRouter(
@@ -69,6 +70,11 @@ def create_department(
     db.add(new_department)
     db.commit()
     db.refresh(new_department)
+
+    logger.info(
+        f"Department created: id={new_department.id}, "
+        f"name={new_department.name}, code={new_department.code}"
+    )
 
     return new_department
 
@@ -172,6 +178,10 @@ def update_department(
     db.commit()
     db.refresh(department)
 
+    logger.info(
+        f"Department updated: id={department_id}"
+    )
+
     return department
 
 
@@ -201,6 +211,10 @@ def delete_department(
 
     db.delete(department)
     db.commit()
+
+    logger.info(
+        f"Department deleted: id={department_id}"
+    )
 
     return {
         "message": "Department deleted successfully"
