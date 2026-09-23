@@ -1,5 +1,6 @@
 from datetime import date
 from pydantic import BaseModel, EmailStr
+from pydantic import ConfigDict
 
 
 class DepartmentInfo(BaseModel):
@@ -7,8 +8,7 @@ class DepartmentInfo(BaseModel):
     name: str
     code: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class StudentCreate(BaseModel):
@@ -52,5 +52,4 @@ class StudentResponse(BaseModel):
     address: str | None = None
     department: DepartmentInfo
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
