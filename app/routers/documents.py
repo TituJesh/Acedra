@@ -1,9 +1,3 @@
-from app.services.s3_service import (
-    upload_file_to_s3,
-    delete_file_from_s3,
-    generate_download_url
-)
-from pathlib import Path
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -14,6 +8,11 @@ from app.dependencies import get_current_user, require_admin
 from app.models.document import Document
 from app.models.student import Student
 from app.schemas.document import DocumentResponse
+from app.services.s3_service import (
+    delete_file_from_s3,
+    generate_download_url,
+    upload_file_to_s3,
+)
 from app.utils.logger import logger
 
 

@@ -1,6 +1,6 @@
 from datetime import date
-from pydantic import BaseModel, EmailStr
-from pydantic import ConfigDict
+
+from pydantic import BaseModel, ConfigDict, EmailStr
 
 
 class DepartmentInfo(BaseModel):

@@ -16,9 +16,7 @@ env/
 # Uploads
 uploads/
 
-.venv/
-venv/
-__pycache__/
-.env
-uploads/
-*.pyc
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/

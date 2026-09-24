@@ -5,7 +5,7 @@ import os
 import boto3
 from jose import jwt
 
-from app.config import AWS_REGION
+from app.config import AWS_REGION, ENVIRONMENT
 
 
 ALGORITHM = "HS256"
@@ -13,9 +13,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 
 def get_secret_key():
-    environment = os.getenv("ENVIRONMENT", "local")
-
-    if environment == "production":
+    if ENVIRONMENT == "production":
         secrets_client = boto3.client(
             "secretsmanager",
             region_name=AWS_REGION
