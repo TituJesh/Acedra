@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.database import SessionLocal
+from app.dependencies import get_current_user, get_db, require_admin
 from app.models.student import Student
 from app.models.department import Department
 from app.models.user import User
@@ -10,7 +10,6 @@ from app.schemas.student import (
     StudentUpdate,
     StudentResponse
 )
-from app.dependencies import get_current_user, require_admin
 from app.utils.logger import logger
 
 
@@ -20,19 +19,10 @@ router = APIRouter(
 )
 
 
-def get_db():
-    db = SessionLocal()
-
-    try:
-        yield db
-    finally:
-        db.close()
-
-
 @router.post(
     "/",
     response_model=StudentResponse,
-    status_code=201
+    status_code=status.HTTP_201_CREATED
 )
 def create_student(
     student_data: StudentCreate,
@@ -47,13 +37,13 @@ def create_student(
 
     if user is None:
         raise HTTPException(
-            status_code=404,
+            status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found"
         )
 
     if user.role != "student":
         raise HTTPException(
-            status_code=400,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail="User must have student role"
         )
 
@@ -65,7 +55,7 @@ def create_student(
 
     if existing_user_student:
         raise HTTPException(
-            status_code=400,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail="User already has a student profile"
         )
 
@@ -77,7 +67,7 @@ def create_student(
 
     if existing_student:
         raise HTTPException(
-            status_code=400,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail="Student ID already exists"
         )
 
@@ -89,7 +79,7 @@ def create_student(
 
     if existing_email:
         raise HTTPException(
-            status_code=400,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail="Student email already exists"
         )
 
@@ -101,7 +91,7 @@ def create_student(
 
     if department is None:
         raise HTTPException(
-            status_code=404,
+            status_code=status.HTTP_404_NOT_FOUND,
             detail="Department not found"
         )
 
@@ -140,6 +130,7 @@ def get_students(
 
     return students
 
+
 @router.get(
     "/me",
     response_model=StudentResponse
@@ -156,11 +147,12 @@ def get_my_profile(
 
     if student is None:
         raise HTTPException(
-            status_code=404,
+            status_code=status.HTTP_404_NOT_FOUND,
             detail="Student profile not found"
         )
 
     return student
+
 
 @router.get(
     "/search",
@@ -186,6 +178,7 @@ def search_students(
 
     return students
 
+
 @router.get(
     "/{student_id}",
     response_model=StudentResponse
@@ -203,7 +196,7 @@ def get_student(
 
     if student is None:
         raise HTTPException(
-            status_code=404,
+            status_code=status.HTTP_404_NOT_FOUND,
             detail="Student not found"
         )
 
@@ -228,7 +221,7 @@ def update_student(
 
     if student is None:
         raise HTTPException(
-            status_code=404,
+            status_code=status.HTTP_404_NOT_FOUND,
             detail="Student not found"
         )
 
@@ -247,7 +240,7 @@ def update_student(
 
         if department is None:
             raise HTTPException(
-                status_code=404,
+                status_code=status.HTTP_404_NOT_FOUND,
                 detail="Department not found"
             )
 
@@ -263,7 +256,7 @@ def update_student(
 
         if existing_email:
             raise HTTPException(
-                status_code=400,
+                status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Student email already exists"
             )
 
@@ -292,7 +285,7 @@ def delete_student(
 
     if student is None:
         raise HTTPException(
-            status_code=404,
+            status_code=status.HTTP_404_NOT_FOUND,
             detail="Student not found"
         )
 

@@ -1,10 +1,9 @@
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
-from app.database import SessionLocal
-from app.dependencies import get_current_user, require_admin
+from app.dependencies import get_current_user, get_db, require_admin
 from app.models.document import Document
 from app.models.student import Student
 from app.schemas.document import DocumentResponse
@@ -22,19 +21,10 @@ router = APIRouter(
 )
 
 
-
-def get_db():
-    db = SessionLocal()
-
-    try:
-        yield db
-    finally:
-        db.close()
-
-
 @router.post(
     "/upload/{student_id}",
-    response_model=DocumentResponse
+    response_model=DocumentResponse,
+    status_code=status.HTTP_201_CREATED
 )
 def upload_document(
     student_id: int,
@@ -48,13 +38,13 @@ def upload_document(
 
     if student is None:
         raise HTTPException(
-            status_code=404,
+            status_code=status.HTTP_404_NOT_FOUND,
             detail="Student not found"
         )
 
     if not file.filename:
         raise HTTPException(
-            status_code=400,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail="File name is missing"
         )
 
@@ -86,6 +76,7 @@ def upload_document(
 
     return document
 
+
 @router.get(
     "/student/{student_id}",
     response_model=list[DocumentResponse]
@@ -101,7 +92,7 @@ def get_student_documents(
 
     if student is None:
         raise HTTPException(
-            status_code=404,
+            status_code=status.HTTP_404_NOT_FOUND,
             detail="Student not found"
         )
 
@@ -110,6 +101,7 @@ def get_student_documents(
     ).all()
 
     return documents
+
 
 @router.get(
     "/{document_id}",
@@ -126,11 +118,12 @@ def get_document(
 
     if document is None:
         raise HTTPException(
-            status_code=404,
+            status_code=status.HTTP_404_NOT_FOUND,
             detail="Document not found"
         )
 
     return document
+
 
 @router.get("/{document_id}/download")
 def download_document(
@@ -144,7 +137,7 @@ def download_document(
 
     if document is None:
         raise HTTPException(
-            status_code=404,
+            status_code=status.HTTP_404_NOT_FOUND,
             detail="Document not found"
         )
 
@@ -158,6 +151,7 @@ def download_document(
         "expires_in": 300
     }
 
+
 @router.delete("/{document_id}")
 def delete_document(
     document_id: int,
@@ -170,7 +164,7 @@ def delete_document(
 
     if document is None:
         raise HTTPException(
-            status_code=404,
+            status_code=status.HTTP_404_NOT_FOUND,
             detail="Document not found"
         )
 

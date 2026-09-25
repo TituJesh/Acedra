@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.database import SessionLocal
+from app.dependencies import get_current_user, get_db, require_admin
 from app.models.department import Department
 from app.models.user import User
 from app.schemas.department import (
@@ -9,7 +9,6 @@ from app.schemas.department import (
     DepartmentUpdate,
     DepartmentResponse
 )
-from app.dependencies import get_current_user, require_admin
 from app.utils.logger import logger
 
 
@@ -19,19 +18,10 @@ router = APIRouter(
 )
 
 
-def get_db():
-    db = SessionLocal()
-
-    try:
-        yield db
-    finally:
-        db.close()
-
-
 @router.post(
     "/",
     response_model=DepartmentResponse,
-    status_code=201
+    status_code=status.HTTP_201_CREATED
 )
 def create_department(
     department_data: DepartmentCreate,
@@ -46,7 +36,7 @@ def create_department(
 
     if existing_name:
         raise HTTPException(
-            status_code=400,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail="Department name already exists"
         )
 
@@ -58,7 +48,7 @@ def create_department(
 
     if existing_code:
         raise HTTPException(
-            status_code=400,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail="Department code already exists"
         )
 
@@ -107,7 +97,7 @@ def get_department(
 
     if department is None:
         raise HTTPException(
-            status_code=404,
+            status_code=status.HTTP_404_NOT_FOUND,
             detail="Department not found"
         )
 
@@ -132,7 +122,7 @@ def update_department(
 
     if department is None:
         raise HTTPException(
-            status_code=404,
+            status_code=status.HTTP_404_NOT_FOUND,
             detail="Department not found"
         )
 
@@ -152,7 +142,7 @@ def update_department(
 
         if existing_name:
             raise HTTPException(
-                status_code=400,
+                status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Department name already exists"
             )
 
@@ -168,7 +158,7 @@ def update_department(
 
         if existing_code:
             raise HTTPException(
-                status_code=400,
+                status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Department code already exists"
             )
 
@@ -199,13 +189,13 @@ def delete_department(
 
     if department is None:
         raise HTTPException(
-            status_code=404,
+            status_code=status.HTTP_404_NOT_FOUND,
             detail="Department not found"
         )
 
     if department.students:
         raise HTTPException(
-            status_code=400,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot delete department with students"
         )
 

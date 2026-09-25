@@ -1,22 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-from app.dependencies import get_current_user, require_admin
 
-from app.database import SessionLocal
+from app.dependencies import get_current_user, get_db, require_admin
 from app.schemas.auth import UserRegister, UserLogin, TokenResponse
 from app.utils.security import hash_password, verify_password
 from app.utils.jwt import create_access_token
 from app.models.user import User
 from app.utils.logger import logger
-
-def get_db():
-    db = SessionLocal()
-
-    try:
-        yield db
-    finally:
-        db.close()
 
 
 router = APIRouter(
@@ -24,7 +15,8 @@ router = APIRouter(
     tags=["Authentication"]
 )
 
-@router.post("/register")
+
+@router.post("/register", status_code=status.HTTP_201_CREATED)
 def register(
     user: UserRegister,
     db: Session = Depends(get_db)
@@ -52,6 +44,7 @@ def register(
         "role": new_user.role
     }
 
+
 @router.post("/login", response_model=TokenResponse)
 def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
@@ -66,7 +59,7 @@ def login(
     if existing_user is None:
         logger.warning(f"Failed login attempt: username '{form_data.username}' not found")
         raise HTTPException(
-            status_code=401,
+            status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid username or password"
         )
 
@@ -78,7 +71,7 @@ def login(
     if not password_is_correct:
         logger.warning(f"Failed login attempt: incorrect password for user_id={existing_user.id}")
         raise HTTPException(
-            status_code=401,
+            status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid username or password"
         )
 
@@ -96,6 +89,7 @@ def login(
         "token_type": "bearer"
     }
 
+
 @router.get("/me")
 def get_me(
     current_user: User = Depends(get_current_user)
@@ -106,6 +100,7 @@ def get_me(
         "email": current_user.email,
         "role": current_user.role
     }
+
 
 @router.get("/admin-test")
 def admin_test(
