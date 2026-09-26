@@ -3,7 +3,12 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_current_user, get_db, require_admin
-from app.schemas.auth import UserRegister, UserLogin, TokenResponse
+from app.schemas.auth import (
+    TokenResponse,
+    UserRegister,
+    UserRegisterResponse,
+    UserResponse,
+)
 from app.utils.security import hash_password, verify_password
 from app.utils.jwt import create_access_token
 from app.models.user import User
@@ -16,11 +21,45 @@ router = APIRouter(
 )
 
 
-@router.post("/register", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/register",
+    response_model=UserRegisterResponse,
+    status_code=status.HTTP_201_CREATED
+)
 def register(
     user: UserRegister,
     db: Session = Depends(get_db)
 ):
+    existing_username = (
+        db.query(User)
+        .filter(User.username == user.username)
+        .first()
+    )
+
+    if existing_username:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Username already registered"
+        )
+
+    existing_email = (
+        db.query(User)
+        .filter(User.email == user.email)
+        .first()
+    )
+
+    if existing_email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered"
+        )
+
+    if user.role not in ["admin", "student"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Role must be either 'admin' or 'student'"
+        )
+
     hashed_password = hash_password(user.password)
 
     new_user = User(
@@ -90,16 +129,14 @@ def login(
     }
 
 
-@router.get("/me")
+@router.get(
+    "/me",
+    response_model=UserResponse
+)
 def get_me(
     current_user: User = Depends(get_current_user)
 ):
-    return {
-        "id": current_user.id,
-        "username": current_user.username,
-        "email": current_user.email,
-        "role": current_user.role
-    }
+    return current_user
 
 
 @router.get("/admin-test")

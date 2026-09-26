@@ -11,4 +11,13 @@ class DocumentResponse(BaseModel):
     s3_key: str
     uploaded_at: datetime | None = None
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DocumentDownloadResponse(BaseModel):
+    file_name: str
+    download_url: str
+    expires_in: int
+
+    model_config = ConfigDict(from_attributes=True)
+

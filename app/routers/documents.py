@@ -6,7 +6,8 @@ from sqlalchemy.orm import Session
 from app.dependencies import get_current_user, get_db, require_admin
 from app.models.document import Document
 from app.models.student import Student
-from app.schemas.document import DocumentResponse
+from app.models.user import User
+from app.schemas.document import DocumentDownloadResponse, DocumentResponse
 from app.services.s3_service import (
     delete_file_from_s3,
     generate_download_url,
@@ -29,7 +30,7 @@ router = APIRouter(
 def upload_document(
     student_id: int,
     file: UploadFile = File(...),
-    current_user=Depends(require_admin),
+    current_user: User = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
     student = db.query(Student).filter(
@@ -83,7 +84,7 @@ def upload_document(
 )
 def get_student_documents(
     student_id: int,
-    current_user=Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     student = db.query(Student).filter(
@@ -109,7 +110,7 @@ def get_student_documents(
 )
 def get_document(
     document_id: int,
-    current_user=Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     document = db.query(Document).filter(
@@ -125,10 +126,13 @@ def get_document(
     return document
 
 
-@router.get("/{document_id}/download")
+@router.get(
+    "/{document_id}/download",
+    response_model=DocumentDownloadResponse
+)
 def download_document(
     document_id: int,
-    current_user=Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     document = db.query(Document).filter(
@@ -155,7 +159,7 @@ def download_document(
 @router.delete("/{document_id}")
 def delete_document(
     document_id: int,
-    current_user=Depends(require_admin),
+    current_user: User = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
     document = db.query(Document).filter(
