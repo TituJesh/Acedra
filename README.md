@@ -314,16 +314,22 @@ Access is strictly controlled by role-based dependency injection:
 | `/auth/login` | `POST` | ✅ | ✅ | ✅ | Generate Bearer token |
 | `/auth/me` | `GET` | ❌ | ✅ | ✅ | Retrieve current user profile |
 | `/auth/admin-test` | `GET` | ❌ | ❌ | ✅ | Admin route verification |
-| `/departments/` | `GET` | ❌ | ✅ | ✅ | Browse departments |
+| `/departments/` | `GET` | ❌ | ✅ | ✅ | Browse departments (supports `skip`, `limit`) |
 | `/departments/` | `POST` | ❌ | ❌ | ✅ | Create department |
-| `/students/` | `GET` | ❌ | ✅ | ✅ | Browse all student profiles |
+| `/departments/{id}` | `GET` | ❌ | ✅ | ✅ | Retrieve department by ID |
+| `/departments/{id}` | `PUT` | ❌ | ❌ | ✅ | Update department details |
+| `/departments/{id}` | `DELETE` | ❌ | ❌ | ✅ | Delete department (guarded against active enrollments) |
+| `/students/` | `GET` | ❌ | ✅ | ✅ | Browse students (supports `skip`, `limit`, `department_id`) |
 | `/students/` | `POST` | ❌ | ❌ | ✅ | Register new student record |
 | `/students/me` | `GET` | ❌ | ✅ | ✅ | Fetch caller's student record |
-| `/students/search` | `GET` | ❌ | ✅ | ✅ | Search students by ID, Name, or Email |
-| `/students/{id}` | `PUT`/`DEL` | ❌ | ❌ | ✅ | Modify or delete student record |
-| `/documents/upload/{id}` | `POST` | ❌ | ❌ | ✅ | Upload document to S3 |
-| `/documents/student/{id}`| `GET` | ❌ | ✅ | ✅ | List documents for student |
-| `/documents/{id}/download`| `GET` | ❌ | ✅ | ✅ | Generate 300s presigned download URL |
+| `/students/search` | `GET` | ❌ | ✅ | ✅ | Search students by ID, Name, or Email (supports `skip`, `limit`) |
+| `/students/{id}` | `GET` | ❌ | Self only | ✅ | Fetch student record (restricted to owner or admin) |
+| `/students/{id}` | `PUT` | ❌ | ❌ | ✅ | Modify student record |
+| `/students/{id}` | `DELETE` | ❌ | ❌ | ✅ | Delete student record |
+| `/documents/upload/{id}` | `POST` | ❌ | ❌ | ✅ | Upload document to S3 (validated type & max 10MB) |
+| `/documents/student/{id}`| `GET` | ❌ | Self only | ✅ | List documents for student (owner or admin) |
+| `/documents/{id}` | `GET` | ❌ | Self only | ✅ | Retrieve document metadata (owner or admin) |
+| `/documents/{id}/download`| `GET` | ❌ | Self only | ✅ | Generate 300s presigned download URL (owner or admin) |
 | `/documents/{id}` | `DELETE`| ❌ | ❌ | ✅ | Delete document from S3 and DB |
 
 ---
@@ -384,14 +390,22 @@ curl -X POST "http://127.0.0.1:8000/students/" \
      }'
 ```
 
-### 5. Upload Student Document to S3
+### 5. Browse Students with Pagination & Filtering
+```bash
+curl -X GET "http://127.0.0.1:8000/students/?skip=0&limit=10&department_id=1" \
+     -H "Authorization: Bearer <YOUR_ACCESS_TOKEN>"
+```
+
+### 6. Upload Student Document to S3
+Validates allowed extensions (`.pdf`, `.png`, `.jpg`, `.jpeg`, `.docx`, `.txt`) and enforces a 10MB size ceiling:
 ```bash
 curl -X POST "http://127.0.0.1:8000/documents/upload/1" \
      -H "Authorization: Bearer <YOUR_ACCESS_TOKEN>" \
      -F "file=@sample_transcript.pdf;type=application/pdf"
 ```
 
-### 6. Get Presigned S3 Download URL (Valid for 300 seconds)
+### 7. Get Presigned S3 Download URL (Valid for 300 seconds)
+Protected by ownership verification — students can only download their own documents:
 ```bash
 curl -X GET "http://127.0.0.1:8000/documents/1/download" \
      -H "Authorization: Bearer <YOUR_ACCESS_TOKEN>"
@@ -479,9 +493,12 @@ flake8 app/ --max-line-length=88
 - **Zero Hardcoded Secrets**: Secrets are injected via `.env` in local development and loaded from AWS Secrets Manager in production.
 - **Bcrypt Password Hashing**: Passwords are never saved in cleartext; salted hashes are generated via passlib.
 - **Private Object Storage**: Amazon S3 objects are completely private; client retrieval occurs through time-bounded (300-second TTL) HMAC presigned URLs.
+- **Student Profile & Document Isolation**: Cross-student data leakage is guarded against by verifying caller ownership against student user IDs (`403 Forbidden` for unauthorized callers).
+- **Upload File Validation & Quotas**: Document uploads validate extensions against an allowlist (`.pdf`, `.png`, `.jpg`, `.jpeg`, `.docx`, `.txt`) and enforce a 10MB payload limit.
 - **UUIDv4 Collision Shielding**: Uploaded files receive isolated UUIDv4 prefixes preventing filename collisions or overwrites.
 - **SQL Parameterization**: SQLAlchemy 2.0 uses parameterized query bindings, neutralizing SQL injection vectors.
 - **Payload Sanitization**: Pydantic v2 schemas enforce strict validation on emails, dates, and input lengths.
+- **Latency Diagnostics**: All API responses provide `X-Process-Time` timing headers for performance profiling.
 
 ---
 
