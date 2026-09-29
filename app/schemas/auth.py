@@ -35,4 +35,12 @@ class UserRegisterResponse(BaseModel):
     role: str
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class AdminTestResponse(BaseModel):
+    message: str
+    username: str
+    role: str
+
+    model_config = ConfigDict(from_attributes=True)
 

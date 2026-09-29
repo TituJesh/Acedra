@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_current_user, get_db, require_admin
 from app.models.student import Student
 from app.models.department import Department
 from app.models.user import User
+from app.schemas.common import MessageResponse
 from app.schemas.student import (
     StudentCreate,
     StudentUpdate,
@@ -123,10 +124,17 @@ def create_student(
     response_model=list[StudentResponse]
 )
 def get_students(
+    skip: int = Query(0, ge=0, description="Number of records to skip"),
+    limit: int = Query(100, ge=1, le=100, description="Maximum number of records to return"),
+    department_id: int | None = Query(None, description="Filter by department ID"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    students = db.query(Student).all()
+    query = db.query(Student)
+    if department_id is not None:
+        query = query.filter(Student.department_id == department_id)
+
+    students = query.offset(skip).limit(limit).all()
 
     return students
 
@@ -160,6 +168,8 @@ def get_my_profile(
 )
 def search_students(
     query: str,
+    skip: int = Query(0, ge=0, description="Number of records to skip"),
+    limit: int = Query(100, ge=1, le=100, description="Maximum number of records to return"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -173,6 +183,8 @@ def search_students(
             | (Student.last_name.ilike(search_query))
             | (Student.email.ilike(search_query))
         )
+        .offset(skip)
+        .limit(limit)
         .all()
     )
 
@@ -198,6 +210,12 @@ def get_student(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Student not found"
+        )
+
+    if current_user.role != "admin" and student.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access forbidden: cannot view other student profiles"
         )
 
     return student
@@ -271,7 +289,11 @@ def update_student(
     return student
 
 
-@router.delete("/{student_id}")
+@router.delete(
+    "/{student_id}",
+    response_model=MessageResponse,
+    status_code=status.HTTP_200_OK
+)
 def delete_student(
     student_id: int,
     db: Session = Depends(get_db),

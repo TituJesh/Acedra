@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_current_user, get_db, require_admin
 from app.models.department import Department
 from app.models.user import User
+from app.schemas.common import MessageResponse
 from app.schemas.department import (
     DepartmentCreate,
     DepartmentUpdate,
@@ -74,10 +75,12 @@ def create_department(
     response_model=list[DepartmentResponse]
 )
 def get_departments(
+    skip: int = Query(0, ge=0, description="Number of records to skip"),
+    limit: int = Query(100, ge=1, le=100, description="Maximum number of records to return"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    return db.query(Department).all()
+    return db.query(Department).offset(skip).limit(limit).all()
 
 
 @router.get(
@@ -175,7 +178,11 @@ def update_department(
     return department
 
 
-@router.delete("/{department_id}")
+@router.delete(
+    "/{department_id}",
+    response_model=MessageResponse,
+    status_code=status.HTTP_200_OK
+)
 def delete_department(
     department_id: int,
     db: Session = Depends(get_db),

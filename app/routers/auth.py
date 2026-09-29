@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.dependencies import get_current_user, get_db, require_admin
 from app.schemas.auth import (
+    AdminTestResponse,
     TokenResponse,
     UserRegister,
     UserRegisterResponse,
@@ -139,7 +140,10 @@ def get_me(
     return current_user
 
 
-@router.get("/admin-test")
+@router.get(
+    "/admin-test",
+    response_model=AdminTestResponse
+)
 def admin_test(
     current_user: User = Depends(require_admin)
 ):

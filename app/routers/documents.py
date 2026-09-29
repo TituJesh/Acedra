@@ -1,3 +1,4 @@
+import os
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
@@ -7,6 +8,7 @@ from app.dependencies import get_current_user, get_db, require_admin
 from app.models.document import Document
 from app.models.student import Student
 from app.models.user import User
+from app.schemas.common import MessageResponse
 from app.schemas.document import DocumentDownloadResponse, DocumentResponse
 from app.services.s3_service import (
     delete_file_from_s3,
@@ -14,6 +16,9 @@ from app.services.s3_service import (
     upload_file_to_s3,
 )
 from app.utils.logger import logger
+
+ALLOWED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".docx", ".txt"}
+MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB
 
 
 router = APIRouter(
@@ -47,6 +52,19 @@ def upload_document(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="File name is missing"
+        )
+
+    _, ext = os.path.splitext(file.filename)
+    if ext.lower() not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"File extension '{ext}' is not supported. Allowed: {', '.join(sorted(ALLOWED_EXTENSIONS))}"
+        )
+
+    if file.size and file.size > MAX_FILE_SIZE_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"File size exceeds maximum allowed limit of {MAX_FILE_SIZE_BYTES // (1024 * 1024)}MB"
         )
 
     unique_filename = f"{uuid4()}_{file.filename}"
@@ -97,6 +115,12 @@ def get_student_documents(
             detail="Student not found"
         )
 
+    if current_user.role != "admin" and student.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access forbidden: cannot view other student documents"
+        )
+
     documents = db.query(Document).filter(
         Document.student_id == student_id
     ).all()
@@ -123,6 +147,13 @@ def get_document(
             detail="Document not found"
         )
 
+    student = db.query(Student).filter(Student.id == document.student_id).first()
+    if current_user.role != "admin" and (student is None or student.user_id != current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access forbidden: cannot view this document"
+        )
+
     return document
 
 
@@ -145,6 +176,13 @@ def download_document(
             detail="Document not found"
         )
 
+    student = db.query(Student).filter(Student.id == document.student_id).first()
+    if current_user.role != "admin" and (student is None or student.user_id != current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access forbidden: cannot download this document"
+        )
+
     download_url = generate_download_url(
         document.s3_key
     )
@@ -156,7 +194,11 @@ def download_document(
     }
 
 
-@router.delete("/{document_id}")
+@router.delete(
+    "/{document_id}",
+    response_model=MessageResponse,
+    status_code=status.HTTP_200_OK
+)
 def delete_document(
     document_id: int,
     current_user: User = Depends(require_admin),
