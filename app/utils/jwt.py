@@ -27,7 +27,7 @@ def get_secret_key():
 
         return secret_data["SECRET_KEY"]
 
-    return os.getenv("SECRET_KEY")
+    return os.getenv("SECRET_KEY", "acedra-dev-secret-key-at-least-32-bytes-long")
 
 
 SECRET_KEY = get_secret_key()
