@@ -1,0 +1,149 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  AWS CloudFormation template for Acedra: Provisions Amazon ECR Repository,
+  GitHub Actions OIDC Identity Provider, and least-privilege IAM Role for keyless CI/CD.
+
+Parameters:
+  GitHubOrg:
+    Type: String
+    Default: TituJesh
+    Description: GitHub username or organization name.
+
+  GitHubRepo:
+    Type: String
+    Default: Acedra
+    Description: GitHub repository name.
+
+  EcrRepositoryName:
+    Type: String
+    Default: acedra-backend
+    Description: Amazon ECR repository name.
+
+  CreateOidcProvider:
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: Set to 'false' if token.actions.githubusercontent.com already exists in your AWS account.
+
+Conditions:
+  NeedsOidcProvider: !Equals [!Ref CreateOidcProvider, 'true']
+
+Resources:
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: NeedsOidcProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList:
+        - sts.amazonaws.com
+      ThumbprintList:
+        - 6938fd4d98bab03faadb97b34396831e3780aea1
+        - 1c5860a5f213b826072174ee934fc5bc60e1893d
+      Tags:
+        - Key: Project
+          Value: Acedra
+
+  EcrRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Ref EcrRepositoryName
+      ImageTagMutability: MUTABLE
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      EncryptionConfiguration:
+        EncryptionType: AES256
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "description": "Expire untagged images older than 7 days",
+                "selection": {
+                  "tagStatus": "untagged",
+                  "countType": "sinceImagePushed",
+                  "countUnit": "days",
+                  "countNumber": 7
+                },
+                "action": { "type": "expire" }
+              },
+              {
+                "rulePriority": 2,
+                "description": "Retain last 20 tagged production images",
+                "selection": {
+                  "tagStatus": "tagged",
+                  "tagPrefixList": ["latest", "v", "sha-"],
+                  "countType": "imageCountMoreThan",
+                  "countNumber": 20
+                },
+                "action": { "type": "expire" }
+              }
+            ]
+          }
+      Tags:
+        - Key: Project
+          Value: Acedra
+
+  GitHubActionsECRRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: AcedraGitHubActionsECRRole
+      Description: IAM role assumed by GitHub Actions via OIDC to push Docker images to ECR
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !If
+                - NeedsOidcProvider
+                - !Ref GitHubOidcProvider
+                - !Sub 'arn:aws:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com'
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+              StringLike:
+                token.actions.githubusercontent.com:sub: !Sub 'repo:${GitHubOrg}/${GitHubRepo}:*'
+      Policies:
+        - PolicyName: AcedraECRPushPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: ECRAuthToken
+                Effect: Allow
+                Action:
+                  - ecr:GetAuthorizationToken
+                Resource: '*'
+              - Sid: ECRPushPullOps
+                Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:GetRepositoryPolicy
+                  - ecr:DescribeRepositories
+                  - ecr:ListImages
+                  - ecr:DescribeImages
+                  - ecr:BatchGetImage
+                  - ecr:InitiateLayerUpload
+                  - ecr:UploadLayerPart
+                  - ecr:CompleteLayerUpload
+                  - ecr:PutImage
+                Resource: !GetAtt EcrRepository.Arn
+      Tags:
+        - Key: Project
+          Value: Acedra
+
+Outputs:
+  RoleArn:
+    Description: Set this as GitHub repository secret 'AWS_ROLE_ARN'
+    Value: !GetAtt GitHubActionsECRRole.Arn
+
+  EcrRepositoryUri:
+    Description: Amazon ECR repository URI
+    Value: !GetAtt EcrRepository.RepositoryUri
+
+  Region:
+    Description: AWS Region where resources are deployed
+    Value: !Ref AWS::Region
