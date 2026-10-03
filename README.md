@@ -506,6 +506,8 @@ flake8 app/ --max-line-length=88
 
 Acedra is designed for cloud-native deployment across containerized services:
 
+- **Container Registry**: **Amazon ECR** (Elastic Container Registry) with keyless GitHub Actions OIDC authentication.
+- **CI / CD Pipeline**: Automated test execution, Docker build, and ECR push on merge to `main`. See [AWS ECR OIDC Setup Guide](docs/aws-ecr-oidc-setup.md).
 - **Web / API Service**: Deployable as a container on **AWS ECS (Fargate)**, **AWS EC2**, **Render**, or **DigitalOcean App Platform**.
 - **Managed Database**: **Amazon RDS for PostgreSQL 16** or **Neon Database**.
 - **Object Storage**: **Amazon S3** bucket in the corresponding VPC region.
@@ -519,7 +521,7 @@ Acedra is designed for cloud-native deployment across containerized services:
 
 ## Support
 
-If you find this project helpful, please consider giving it a star on GitHub! 
+If you find this project helpful, please consider giving it a star on GitHub!
 
 <p align="left">
   <a href="https://github.com/TituJesh/Acedra">

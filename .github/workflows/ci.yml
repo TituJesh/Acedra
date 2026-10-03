@@ -1,40 +1,120 @@
-name: Acedra CI
+name: Acedra CI / CD Pipeline
 
 on:
   push:
     branches:
       - main
-
   pull_request:
     branches:
       - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
-  test-and-build:
-
+  test:
+    name: Run Automated Tests & Verify Docker Build
     runs-on: ubuntu-latest
 
     steps:
-
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: "pip"
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-      - name: Run tests
+      - name: Run test suite
         env:
           ENVIRONMENT: testing
           SECRET_KEY: acedra-ci-test-secret-key-minimum-32-chars
           DATABASE_URL: sqlite:///:memory:
           AWS_REGION: ap-south-1
           S3_BUCKET_NAME: test-acedra-documents-bucket
-        run: pytest
+        run: pytest -v
 
-      - name: Build Docker image
-        run: docker build -t acedra .
+      - name: Validate Dockerfile build
+        run: docker build -t acedra:test .
+
+  build-and-push-ecr:
+    name: Build & Push Image to Amazon ECR (OIDC)
+    needs: test
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write  # Crucial: Required for requesting the OIDC JWT from GitHub
+      contents: read   # Required for actions/checkout
+
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION || 'ap-south-1' }}
+      ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY || 'acedra-backend' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check AWS OIDC Role Secret Configuration
+        id: check-secrets
+        run: |
+          if [ -z "${{ secrets.AWS_ROLE_ARN }}" ]; then
+            echo "configured=false" >> $GITHUB_OUTPUT
+            echo "::warning title=AWS_ROLE_ARN Secret Missing::AWS_ROLE_ARN is not configured in GitHub Repository Secrets. Skipping ECR deployment. Refer to docs/aws-ecr-oidc-setup.md to set up IAM OIDC & ECR."
+          else
+            echo "configured=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Configure AWS Credentials via OIDC
+        if: steps.check-secrets.outputs.configured == 'true'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-Acedra-ECR
+          audience: sts.amazonaws.com
+
+      - name: Log in to Amazon ECR
+        if: steps.check-secrets.outputs.configured == 'true'
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        if: steps.check-secrets.outputs.configured == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push Docker image to Amazon ECR
+        if: steps.check-secrets.outputs.configured == 'true'
+        uses: docker/build-push-action@v6
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Generate Deployment Step Summary
+        if: steps.check-secrets.outputs.configured == 'true'
+        run: |
+          echo "### 🚀 Amazon ECR Image Successfully Pushed!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Attribute | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|:---|:---|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Registry** | \`${{ steps.login-ecr.outputs.registry }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Repository** | \`${{ env.ECR_REPOSITORY }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Image Tag (SHA)** | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Image Tag (Latest)** | \`latest\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Image URI** | \`${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **AWS Region** | \`${{ env.AWS_REGION }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Authentication** | OIDC (Keyless) |" >> $GITHUB_STEP_SUMMARY
