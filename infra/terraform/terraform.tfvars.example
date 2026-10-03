@@ -1,0 +1,7 @@
+# Copy this file to terraform.tfvars and customize if necessary
+aws_region           = "ap-south-1"
+environment          = "production"
+ecr_repository_name  = "acedra-backend"
+github_repository    = "TituJesh/Acedra"
+iam_role_name        = "AcedraGitHubActionsECRRole"
+create_oidc_provider = true
