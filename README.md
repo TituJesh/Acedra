@@ -519,7 +519,7 @@ Acedra is designed for cloud-native deployment across containerized services:
 
 ## Support
 
-If you find this project helpful, please consider giving it a star on GitHub! Thanks...
+If you find this project helpful, please consider giving it a star on GitHub! 
 
 <p align="left">
   <a href="https://github.com/TituJesh/Acedra">
