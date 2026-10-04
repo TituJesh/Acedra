@@ -191,3 +191,64 @@ def test_delete_document_not_found(client, admin_headers):
     """Test deleting non-existent document returns 404."""
     response = client.delete("/documents/9999", headers=admin_headers)
     assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+def test_upload_document_empty_filename(client, admin_headers, test_student):
+    """Test uploading a file with an empty filename is rejected with 422."""
+    response = client.post(
+        f"/documents/upload/{test_student.id}",
+        files={"file": ("", io.BytesIO(b"dummy data"), "application/pdf")},
+        headers=admin_headers
+    )
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+
+
+def test_upload_document_file_size_exceeded(client, admin_headers, test_student):
+    """Test uploading a file exceeding max file size limit returns 400."""
+    oversized_data = b"x" * (10 * 1024 * 1024 + 1024)
+    response = client.post(
+        f"/documents/upload/{test_student.id}",
+        files={"file": ("large_file.pdf", io.BytesIO(oversized_data), "application/pdf")},
+        headers=admin_headers
+    )
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert "exceeds maximum allowed limit" in response.json()["detail"]
+
+
+def test_get_student_documents_student_not_found(client, admin_headers):
+    """Test retrieving documents for non-existent student returns 404."""
+    response = client.get("/documents/student/99999", headers=admin_headers)
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    assert response.json()["detail"] == "Student not found"
+
+
+def test_get_document_by_id_not_found(client, admin_headers):
+    """Test retrieving non-existent document by ID returns 404."""
+    response = client.get("/documents/99999", headers=admin_headers)
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    assert response.json()["detail"] == "Document not found"
+
+
+def test_get_document_as_other_student_forbidden(client, other_student_headers, db_session, test_student):
+    """Test non-admin student cannot retrieve another student's document by ID."""
+    doc = Document(
+        student_id=test_student.id,
+        file_name="private_cert.pdf",
+        file_type="application/pdf",
+        s3_key=f"students/{test_student.id}/private_cert.pdf"
+    )
+    db_session.add(doc)
+    db_session.commit()
+
+    response = client.get(f"/documents/{doc.id}", headers=other_student_headers)
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+    assert "Access forbidden" in response.json()["detail"]
+
+
+def test_download_document_not_found(client, admin_headers):
+    """Test generating presigned download URL for non-existent document returns 404."""
+    response = client.get("/documents/99999/download", headers=admin_headers)
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    assert response.json()["detail"] == "Document not found"
+

@@ -163,3 +163,22 @@ def test_admin_test_as_student_forbidden(client, student_headers):
     response = client.get("/auth/admin-test", headers=student_headers)
     assert response.status_code == status.HTTP_403_FORBIDDEN
     assert response.json()["detail"] == "Admin access required"
+
+
+def test_get_me_token_missing_user_id(client):
+    """Test /auth/me with a JWT payload missing user_id returns 401."""
+    from app.utils.jwt import create_access_token
+    token_without_user_id = create_access_token({"role": "admin"})
+    response = client.get("/auth/me", headers={"Authorization": f"Bearer {token_without_user_id}"})
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+    assert response.json()["detail"] == "Could not validate credentials"
+
+
+def test_get_me_token_nonexistent_user(client):
+    """Test /auth/me with a valid token for a deleted/non-existent user returns 401."""
+    from app.utils.jwt import create_access_token
+    token_for_ghost_user = create_access_token({"user_id": 99999, "role": "admin"})
+    response = client.get("/auth/me", headers={"Authorization": f"Bearer {token_for_ghost_user}"})
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+    assert response.json()["detail"] == "Could not validate credentials"
+

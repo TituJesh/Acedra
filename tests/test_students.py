@@ -235,3 +235,66 @@ def test_delete_student_not_found(client, admin_headers):
     """Test deleting non-existent student returns 404."""
     response = client.delete("/students/9999", headers=admin_headers)
     assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+def test_get_student_by_id_not_found(client, admin_headers):
+    """Test retrieving non-existent student by ID returns 404."""
+    response = client.get("/students/99999", headers=admin_headers)
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    assert response.json()["detail"] == "Student not found"
+
+
+def test_search_students_no_results(client, admin_headers):
+    """Test searching with unmatched query returns an empty list."""
+    response = client.get("/students/search?query=NonExistentMatchXYZ", headers=admin_headers)
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json() == []
+
+
+def test_update_student_not_found(client, admin_headers):
+    """Test updating non-existent student returns 404."""
+    response = client.put(
+        "/students/99999",
+        json={"first_name": "Ghost"},
+        headers=admin_headers
+    )
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    assert response.json()["detail"] == "Student not found"
+
+
+def test_update_student_department_not_found(client, admin_headers, test_student):
+    """Test updating student with non-existent department returns 404."""
+    response = client.put(
+        f"/students/{test_student.id}",
+        json={"department_id": 99999},
+        headers=admin_headers
+    )
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    assert response.json()["detail"] == "Department not found"
+
+
+def test_update_student_duplicate_email(client, admin_headers, test_student, other_student_user, test_department, db_session):
+    """Test updating student email to another student's existing email returns 400."""
+    import datetime
+    from app.models.student import Student
+
+    second_student = Student(
+        user_id=other_student_user.id,
+        student_id="STU_SECOND_002",
+        first_name="Jane",
+        last_name="Smith",
+        email="jane.smith.student@acedra.edu",
+        department_id=test_department.id,
+        year=2
+    )
+    db_session.add(second_student)
+    db_session.commit()
+
+    response = client.put(
+        f"/students/{test_student.id}",
+        json={"email": "jane.smith.student@acedra.edu"},
+        headers=admin_headers
+    )
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert "Student email already exists" in response.json()["detail"]
+

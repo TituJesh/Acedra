@@ -40,3 +40,16 @@ def test_health_check_unhealthy(client):
         assert data["database"] == "unhealthy"
     finally:
         del app.dependency_overrides[get_db]
+
+
+def test_global_exception_handler(admin_headers):
+    """Test that unexpected server exceptions return a 500 JSON response."""
+    from unittest.mock import patch
+    from fastapi.testclient import TestClient
+
+    with TestClient(app, raise_server_exceptions=False) as custom_client:
+        with patch("sqlalchemy.orm.Session.query", side_effect=RuntimeError("Unexpected database crash")):
+            response = custom_client.get("/departments/", headers=admin_headers)
+            assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+            assert response.json() == {"detail": "Internal server error"}
+
