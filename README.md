@@ -319,17 +319,19 @@ Access is strictly controlled by role-based dependency injection:
 | `/departments/{id}` | `GET` | ❌ | ✅ | ✅ | Retrieve department by ID |
 | `/departments/{id}` | `PUT` | ❌ | ❌ | ✅ | Update department details |
 | `/departments/{id}` | `DELETE` | ❌ | ❌ | ✅ | Delete department (guarded against active enrollments) |
-| `/students/` | `GET` | ❌ | ✅ | ✅ | Browse students (supports `skip`, `limit`, `department_id`) |
+| `/students/` | `GET` | ❌ | ✅ | ✅ | Browse students (supports `skip`, `limit`, `department_id`, `year`, `gender`) |
+| `/students/stats/summary` | `GET` | ❌ | ✅ | ✅ | Demographic and departmental student aggregation stats |
 | `/students/` | `POST` | ❌ | ❌ | ✅ | Register new student record |
 | `/students/me` | `GET` | ❌ | ✅ | ✅ | Fetch caller's student record |
 | `/students/search` | `GET` | ❌ | ✅ | ✅ | Search students by ID, Name, or Email (supports `skip`, `limit`) |
 | `/students/{id}` | `GET` | ❌ | Self only | ✅ | Fetch student record (restricted to owner or admin) |
 | `/students/{id}` | `PUT` | ❌ | ❌ | ✅ | Modify student record |
 | `/students/{id}` | `DELETE` | ❌ | ❌ | ✅ | Delete student record |
+| `/documents/` | `GET` | ❌ | ❌ | ✅ | List all documents across students (supports `skip`, `limit`, `student_id`, `file_type`) |
 | `/documents/upload/{id}` | `POST` | ❌ | ❌ | ✅ | Upload document to S3 (validated type & max 10MB) |
 | `/documents/student/{id}`| `GET` | ❌ | Self only | ✅ | List documents for student (owner or admin) |
 | `/documents/{id}` | `GET` | ❌ | Self only | ✅ | Retrieve document metadata (owner or admin) |
-| `/documents/{id}/download`| `GET` | ❌ | Self only | ✅ | Generate 300s presigned download URL (owner or admin) |
+| `/documents/{id}/download`| `GET` | ❌ | Self only | ✅ | Generate presigned download URL (supports custom `expires_in` 60-3600s) |
 | `/documents/{id}` | `DELETE`| ❌ | ❌ | ✅ | Delete document from S3 and DB |
 
 ---
@@ -390,13 +392,20 @@ curl -X POST "http://127.0.0.1:8000/students/" \
      }'
 ```
 
-### 5. Browse Students with Pagination & Filtering
+### 5. Browse Students with Pagination & Filters
+Filter by department, academic year, and gender:
 ```bash
-curl -X GET "http://127.0.0.1:8000/students/?skip=0&limit=10&department_id=1" \
+curl -X GET "http://127.0.0.1:8000/students/?skip=0&limit=10&department_id=1&year=4&gender=Male" \
      -H "Authorization: Bearer <YOUR_ACCESS_TOKEN>"
 ```
 
-### 6. Upload Student Document to S3
+### 6. Retrieve Student Demographic & Department Statistics
+```bash
+curl -X GET "http://127.0.0.1:8000/students/stats/summary" \
+     -H "Authorization: Bearer <YOUR_ACCESS_TOKEN>"
+```
+
+### 7. Upload Student Document to S3
 Validates allowed extensions (`.pdf`, `.png`, `.jpg`, `.jpeg`, `.docx`, `.txt`) and enforces a 10MB size ceiling:
 ```bash
 curl -X POST "http://127.0.0.1:8000/documents/upload/1" \
@@ -404,10 +413,10 @@ curl -X POST "http://127.0.0.1:8000/documents/upload/1" \
      -F "file=@sample_transcript.pdf;type=application/pdf"
 ```
 
-### 7. Get Presigned S3 Download URL (Valid for 300 seconds)
+### 8. Get Presigned S3 Download URL (Configurable TTL 60-3600s)
 Protected by ownership verification — students can only download their own documents:
 ```bash
-curl -X GET "http://127.0.0.1:8000/documents/1/download" \
+curl -X GET "http://127.0.0.1:8000/documents/1/download?expires_in=600" \
      -H "Authorization: Bearer <YOUR_ACCESS_TOKEN>"
 ```
 **Response:**
@@ -415,7 +424,7 @@ curl -X GET "http://127.0.0.1:8000/documents/1/download" \
 {
   "file_name": "sample_transcript.pdf",
   "download_url": "https://acedra-documents.s3.ap-south-1.amazonaws.com/students/1/...?X-Amz-Signature=...",
-  "expires_in": 300
+  "expires_in": 600
 }
 ```
 

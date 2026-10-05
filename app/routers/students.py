@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_current_user, get_db, require_admin
@@ -7,9 +8,11 @@ from app.models.department import Department
 from app.models.user import User
 from app.schemas.common import MessageResponse
 from app.schemas.student import (
+    DepartmentStudentCount,
     StudentCreate,
-    StudentUpdate,
-    StudentResponse
+    StudentResponse,
+    StudentStatsSummary,
+    StudentUpdate
 )
 from app.utils.logger import logger
 
@@ -127,12 +130,18 @@ def get_students(
     skip: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(100, ge=1, le=100, description="Maximum number of records to return"),
     department_id: int | None = Query(None, description="Filter by department ID"),
+    year: int | None = Query(None, ge=1, le=10, description="Filter by academic year"),
+    gender: str | None = Query(None, description="Filter by gender"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     query = db.query(Student)
     if department_id is not None:
         query = query.filter(Student.department_id == department_id)
+    if year is not None:
+        query = query.filter(Student.year == year)
+    if gender is not None:
+        query = query.filter(Student.gender.ilike(gender))
 
     students = query.offset(skip).limit(limit).all()
 
@@ -189,6 +198,66 @@ def search_students(
     )
 
     return students
+
+
+@router.get(
+    "/stats/summary",
+    response_model=StudentStatsSummary
+)
+def get_student_stats_summary(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    total_students = db.query(func.count(Student.id)).scalar() or 0
+
+    year_records = (
+        db.query(Student.year, func.count(Student.id))
+        .group_by(Student.year)
+        .all()
+    )
+    students_by_year = {
+        str(year) if year is not None else "unspecified": count
+        for year, count in year_records
+    }
+
+    gender_records = (
+        db.query(Student.gender, func.count(Student.id))
+        .group_by(Student.gender)
+        .all()
+    )
+    students_by_gender = {
+        gender if gender is not None else "unspecified": count
+        for gender, count in gender_records
+    }
+
+    dept_records = (
+        db.query(
+            Department.id,
+            Department.name,
+            Department.code,
+            func.count(Student.id).label("student_count")
+        )
+        .outerjoin(Student, Department.id == Student.department_id)
+        .group_by(Department.id, Department.name, Department.code)
+        .order_by(Department.name)
+        .all()
+    )
+    students_by_department = [
+        DepartmentStudentCount(
+            department_id=row.id,
+            department_name=row.name,
+            department_code=row.code,
+            student_count=row.student_count
+        )
+        for row in dept_records
+    ]
+
+    return StudentStatsSummary(
+        total_students=total_students,
+        students_by_year=students_by_year,
+        students_by_gender=students_by_gender,
+        students_by_department=students_by_department
+    )
 
 
 @router.get(

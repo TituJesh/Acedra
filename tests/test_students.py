@@ -298,3 +298,61 @@ def test_update_student_duplicate_email(client, admin_headers, test_student, oth
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert "Student email already exists" in response.json()["detail"]
 
+
+def test_get_students_filter_by_year(client, admin_headers, test_student):
+    """Test filtering students by academic year."""
+    response = client.get(f"/students/?year={test_student.year}", headers=admin_headers)
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert len(data) >= 1
+    assert all(s["year"] == test_student.year for s in data)
+
+    # Non-matching year
+    resp_empty = client.get("/students/?year=6", headers=admin_headers)
+    assert resp_empty.status_code == status.HTTP_200_OK
+    assert resp_empty.json() == []
+
+
+def test_get_students_filter_by_gender(client, admin_headers, test_student):
+    """Test filtering students by gender."""
+    response = client.get(f"/students/?gender={test_student.gender}", headers=admin_headers)
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert len(data) >= 1
+    assert all(s["gender"] == test_student.gender for s in data)
+
+    # Non-matching gender
+    resp_empty = client.get("/students/?gender=NonExistentGender", headers=admin_headers)
+    assert resp_empty.status_code == status.HTTP_200_OK
+    assert resp_empty.json() == []
+
+
+def test_get_student_stats_summary_as_admin(client, admin_headers, test_student, test_department):
+    """Test admin can retrieve student demographic and departmental stats."""
+    response = client.get("/students/stats/summary", headers=admin_headers)
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert "total_students" in data
+    assert data["total_students"] >= 1
+    assert "students_by_year" in data
+    assert str(test_student.year) in data["students_by_year"]
+    assert "students_by_gender" in data
+    assert test_student.gender in data["students_by_gender"]
+    assert "students_by_department" in data
+    assert any(dept["department_id"] == test_department.id and dept["student_count"] >= 1 for dept in data["students_by_department"])
+
+
+def test_get_student_stats_summary_as_student(client, student_headers):
+    """Test authenticated student can view statistics summary."""
+    response = client.get("/students/stats/summary", headers=student_headers)
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert "total_students" in data
+
+
+def test_get_student_stats_summary_unauthenticated(client):
+    """Test unauthenticated request to stats summary returns 401."""
+    response = client.get("/students/stats/summary")
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+

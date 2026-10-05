@@ -53,3 +53,21 @@ class StudentResponse(BaseModel):
     department: DepartmentInfo
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class DepartmentStudentCount(BaseModel):
+    department_id: int
+    department_name: str
+    department_code: str
+    student_count: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class StudentStatsSummary(BaseModel):
+    total_students: int
+    students_by_year: dict[str, int]
+    students_by_gender: dict[str, int]
+    students_by_department: list[DepartmentStudentCount]
+
+    model_config = ConfigDict(from_attributes=True)
