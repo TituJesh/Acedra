@@ -252,3 +252,94 @@ def test_download_document_not_found(client, admin_headers):
     assert response.status_code == status.HTTP_404_NOT_FOUND
     assert response.json()["detail"] == "Document not found"
 
+
+def test_get_all_documents_as_admin(client, admin_headers, db_session, test_student):
+    """Test admin can list all documents across students."""
+    doc = Document(
+        student_id=test_student.id,
+        file_name="transcript_admin.pdf",
+        file_type="application/pdf",
+        s3_key=f"students/{test_student.id}/transcript_admin.pdf"
+    )
+    db_session.add(doc)
+    db_session.commit()
+
+    response = client.get("/documents/", headers=admin_headers)
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert isinstance(data, list)
+    assert any(d["id"] == doc.id for d in data)
+
+
+def test_get_all_documents_as_student_forbidden(client, student_headers):
+    """Test non-admin student is forbidden from listing all documents."""
+    response = client.get("/documents/", headers=student_headers)
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+
+
+def test_get_all_documents_filters(client, admin_headers, db_session, test_student):
+    """Test filtering documents by student_id and file_type."""
+    doc_pdf = Document(
+        student_id=test_student.id,
+        file_name="resume.pdf",
+        file_type="application/pdf",
+        s3_key=f"students/{test_student.id}/resume.pdf"
+    )
+    doc_png = Document(
+        student_id=test_student.id,
+        file_name="photo.png",
+        file_type="image/png",
+        s3_key=f"students/{test_student.id}/photo.png"
+    )
+    db_session.add_all([doc_pdf, doc_png])
+    db_session.commit()
+
+    resp_pdf = client.get(f"/documents/?student_id={test_student.id}&file_type=application/pdf", headers=admin_headers)
+    assert resp_pdf.status_code == status.HTTP_200_OK
+    pdf_docs = resp_pdf.json()
+    assert len(pdf_docs) >= 1
+    assert all(d["file_type"] == "application/pdf" for d in pdf_docs)
+
+    resp_other_student = client.get("/documents/?student_id=9999", headers=admin_headers)
+    assert resp_other_student.status_code == status.HTTP_200_OK
+    assert len(resp_other_student.json()) == 0
+
+
+def test_download_document_custom_expiration(client, admin_headers, db_session, test_student, mock_s3_download):
+    """Test generating presigned download URL with custom expiration time."""
+    doc = Document(
+        student_id=test_student.id,
+        file_name="notes.pdf",
+        file_type="application/pdf",
+        s3_key=f"students/{test_student.id}/notes.pdf"
+    )
+    db_session.add(doc)
+    db_session.commit()
+
+    response = client.get(f"/documents/{doc.id}/download?expires_in=600", headers=admin_headers)
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert data["expires_in"] == 600
+    mock_s3_download.assert_called_with(doc.s3_key, expiration=600)
+
+
+def test_download_document_invalid_expiration_bounds(client, admin_headers, db_session, test_student):
+    """Test invalid expires_in boundary values (< 60 or > 3600) return 422."""
+    doc = Document(
+        student_id=test_student.id,
+        file_name="notes.pdf",
+        file_type="application/pdf",
+        s3_key=f"students/{test_student.id}/notes.pdf"
+    )
+    db_session.add(doc)
+    db_session.commit()
+
+    # Under minimum boundary (60)
+    resp_low = client.get(f"/documents/{doc.id}/download?expires_in=10", headers=admin_headers)
+    assert resp_low.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    # Over maximum boundary (3600)
+    resp_high = client.get(f"/documents/{doc.id}/download?expires_in=7200", headers=admin_headers)
+    assert resp_high.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+

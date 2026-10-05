@@ -1,7 +1,7 @@
 import os
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_current_user, get_db, require_admin
@@ -25,6 +25,27 @@ router = APIRouter(
     prefix="/documents",
     tags=["Documents"]
 )
+
+
+@router.get(
+    "/",
+    response_model=list[DocumentResponse]
+)
+def get_documents(
+    skip: int = Query(0, ge=0, description="Number of records to skip"),
+    limit: int = Query(100, ge=1, le=100, description="Maximum number of records to return"),
+    student_id: int | None = Query(None, description="Filter by student ID"),
+    file_type: str | None = Query(None, description="Filter by MIME file type"),
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    query = db.query(Document)
+    if student_id is not None:
+        query = query.filter(Document.student_id == student_id)
+    if file_type is not None:
+        query = query.filter(Document.file_type == file_type)
+
+    return query.offset(skip).limit(limit).all()
 
 
 @router.post(
@@ -163,6 +184,7 @@ def get_document(
 )
 def download_document(
     document_id: int,
+    expires_in: int = Query(300, ge=60, le=3600, description="URL expiration time in seconds (60-3600)"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -183,14 +205,20 @@ def download_document(
             detail="Access forbidden: cannot download this document"
         )
 
-    download_url = generate_download_url(
-        document.s3_key
-    )
+    if expires_in != 300:
+        download_url = generate_download_url(
+            document.s3_key,
+            expiration=expires_in
+        )
+    else:
+        download_url = generate_download_url(
+            document.s3_key
+        )
 
     return {
         "file_name": document.file_name,
         "download_url": download_url,
-        "expires_in": 300
+        "expires_in": expires_in
     }
 
 
