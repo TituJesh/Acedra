@@ -22,6 +22,8 @@
     <img src="https://img.shields.io/badge/AWS%20S3-Document%20Vault-569A31?logo=amazons3&logoColor=white&style=flat-square" alt="AWS S3" />
     <img src="https://img.shields.io/badge/AWS-Secrets%20Manager-FF9900?logo=amazonwebservices&logoColor=white&style=flat-square" alt="AWS Secrets Manager" />
     <img src="https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white&style=flat-square" alt="Docker Ready" />
+    <img src="https://img.shields.io/badge/Terraform-IaC-7B42BC?logo=terraform&logoColor=white&style=flat-square" alt="Terraform" />
+    <img src="https://img.shields.io/badge/AWS%20ECR-Docker%20Registry-FF9900?logo=amazonwebservices&logoColor=white&style=flat-square" alt="AWS ECR" />
     <img src="https://img.shields.io/badge/API%20Docs-Swagger-85EA2D?logo=swagger&logoColor=black&style=flat-square" alt="Swagger" />
   </p>
 
@@ -45,6 +47,10 @@
 - [Role-Based Access Control (RBAC)](#role-based-access-control-rbac)
 - [API Walkthrough & cURL Examples](#api-walkthrough--curl-examples)
 - [AWS Cloud Infrastructure](#aws-cloud-infrastructure)
+  - [Amazon S3 Bucket Architecture](#amazon-s3-bucket-architecture)
+  - [AWS Secrets Manager](#aws-secrets-manager)
+  - [Least-Privilege IAM Policy](#least-privilege-iam-policy)
+  - [Infrastructure as Code (IaC) & Cloud Provisioning](#infrastructure-as-code-iac--cloud-provisioning)
 - [Testing & Quality Assurance](#testing--quality-assurance)
 - [Security](#security)
 - [Production Cloud Deployment](#production-cloud-deployment)
@@ -102,7 +108,8 @@ The application is structured into modular, decoupled layers: a **FastAPI** asyn
 - **ORM & Migrations**: SQLAlchemy 2.0, Alembic
 - **Cloud Storage & Security**: AWS S3 (`boto3`), AWS Secrets Manager
 - **Authentication & Cryptography**: Python-Jose (JWT HS256), Passlib, Bcrypt, OAuth2 Password Bearer
-- **DevOps & Containerization**: Docker, Docker Compose
+- **DevOps & Containerization**: Docker, Docker Compose, Amazon ECR, GitHub Actions (OIDC)
+- **Infrastructure as Code (IaC)**: Terraform, AWS CloudFormation
 
 ---
 
@@ -476,6 +483,27 @@ aws secretsmanager create-secret \
   ]
 }
 ```
+
+### Infrastructure as Code (IaC) & Cloud Provisioning
+
+Acedra provides automated Infrastructure as Code (IaC) templates and bootstrap scripts to provision Amazon ECR repositories and configure keyless GitHub Actions OIDC federation:
+
+| Tool | Path | Description |
+| :--- | :--- | :--- |
+| **Terraform** | [`infra/terraform/`](infra/terraform/) | Modular AWS provider configuration managing ECR repository, automated image lifecycle policy, IAM OIDC identity provider, and GitHub Actions deployment role. |
+| **CloudFormation** | [`infra/cloudformation/ecr-oidc.yaml`](infra/cloudformation/ecr-oidc.yaml) | CloudFormation template to deploy the complete ECR and OIDC infrastructure stack in AWS Console or CLI. |
+| **Automation Scripts** | [`scripts/`](scripts/) | Ready-to-run setup scripts ([`setup-aws-oidc-ecr.ps1`](scripts/setup-aws-oidc-ecr.ps1) and [`setup-aws-oidc-ecr.sh`](scripts/setup-aws-oidc-ecr.sh)) for fast provisioning. |
+
+#### Quick Provisioning with Terraform
+```bash
+cd infra/terraform
+terraform init
+terraform plan
+terraform apply
+```
+
+> [!TIP]
+> For a detailed architecture walkthrough and step-by-step CI/CD setup, see the [AWS ECR OIDC Setup Guide](docs/aws-ecr-oidc-setup.md).
 
 ---
 
