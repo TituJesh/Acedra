@@ -3,8 +3,10 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_current_user, get_db, require_admin
+from app.schemas.common import MessageResponse
 from app.schemas.auth import (
     AdminTestResponse,
+    ChangePasswordRequest,
     TokenResponse,
     UserRegister,
     UserRegisterResponse,
@@ -151,4 +153,47 @@ def admin_test(
         "message": "Welcome Admin",
         "username": current_user.username,
         "role": current_user.role
+    }
+
+
+@router.post(
+    "/change-password",
+    response_model=MessageResponse,
+    status_code=status.HTTP_200_OK
+)
+def change_password(
+    payload: ChangePasswordRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if not verify_password(payload.current_password, current_user.password_hash):
+        logger.warning(
+            f"Failed password change attempt: incorrect current password for user_id={current_user.id}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password does not match"
+        )
+
+    if payload.current_password == payload.new_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password cannot be the same as current password"
+        )
+
+    if len(payload.new_password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password must be at least 8 characters long"
+        )
+
+    current_user.password_hash = hash_password(payload.new_password)
+    db.commit()
+
+    logger.info(
+        f"Password updated successfully: user_id={current_user.id}, username='{current_user.username}'"
+    )
+
+    return {
+        "message": "Password updated successfully"
     }

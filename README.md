@@ -79,6 +79,7 @@ The application is structured into modular, decoupled layers: a **FastAPI** asyn
 - Cryptographic password hashing using **Bcrypt** with dynamic salting via Passlib.
 - Hierarchical Role-Based Access Control enforcing strict separation between `admin` and `student` roles.
 - Self-service profile resolution (`/auth/me` and `/students/me`).
+- Authenticated credential rotation (`/auth/change-password`) with current password verification and length validation.
 
 ### Cloud Document Vault & S3
 - Secure multi-tenant file ingestion streaming directly to private **Amazon S3** buckets.
@@ -320,6 +321,7 @@ Access is strictly controlled by role-based dependency injection:
 | `/auth/register` | `POST` | ✅ | ✅ | ✅ | Register user account (`admin` or `student`) |
 | `/auth/login` | `POST` | ✅ | ✅ | ✅ | Generate Bearer token |
 | `/auth/me` | `GET` | ❌ | ✅ | ✅ | Retrieve current user profile |
+| `/auth/change-password` | `POST` | ❌ | ✅ | ✅ | Update password (validates current password) |
 | `/auth/admin-test` | `GET` | ❌ | ❌ | ✅ | Admin route verification |
 | `/departments/` | `GET` | ❌ | ✅ | ✅ | Browse departments (supports `skip`, `limit`) |
 | `/departments/` | `POST` | ❌ | ❌ | ✅ | Create department |
@@ -371,7 +373,24 @@ curl -X POST "http://127.0.0.1:8000/auth/login" \
 }
 ```
 
-### 3. Create Department
+### 3. Change Account Password
+```bash
+curl -X POST "http://127.0.0.1:8000/auth/change-password" \
+     -H "Authorization: Bearer <YOUR_ACCESS_TOKEN>" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "current_password": "SuperSecretPassword123!",
+       "new_password": "NewUltraSecurePassword456!"
+     }'
+```
+**Response:**
+```json
+{
+  "message": "Password updated successfully"
+}
+```
+
+### 4. Create Department
 ```bash
 curl -X POST "http://127.0.0.1:8000/departments/" \
      -H "Authorization: Bearer <YOUR_ACCESS_TOKEN>" \
@@ -379,7 +398,7 @@ curl -X POST "http://127.0.0.1:8000/departments/" \
      -d '{"name": "Computer Science", "code": "CS"}'
 ```
 
-### 4. Create Student Record
+### 5. Create Student Record
 ```bash
 curl -X POST "http://127.0.0.1:8000/students/" \
      -H "Authorization: Bearer <YOUR_ACCESS_TOKEN>" \
@@ -399,20 +418,20 @@ curl -X POST "http://127.0.0.1:8000/students/" \
      }'
 ```
 
-### 5. Browse Students with Pagination & Filters
+### 6. Browse Students with Pagination & Filters
 Filter by department, academic year, and gender:
 ```bash
 curl -X GET "http://127.0.0.1:8000/students/?skip=0&limit=10&department_id=1&year=4&gender=Male" \
      -H "Authorization: Bearer <YOUR_ACCESS_TOKEN>"
 ```
 
-### 6. Retrieve Student Demographic & Department Statistics
+### 7. Retrieve Student Demographic & Department Statistics
 ```bash
 curl -X GET "http://127.0.0.1:8000/students/stats/summary" \
      -H "Authorization: Bearer <YOUR_ACCESS_TOKEN>"
 ```
 
-### 7. Upload Student Document to S3
+### 8. Upload Student Document to S3
 Validates allowed extensions (`.pdf`, `.png`, `.jpg`, `.jpeg`, `.docx`, `.txt`) and enforces a 10MB size ceiling:
 ```bash
 curl -X POST "http://127.0.0.1:8000/documents/upload/1" \
@@ -420,7 +439,7 @@ curl -X POST "http://127.0.0.1:8000/documents/upload/1" \
      -F "file=@sample_transcript.pdf;type=application/pdf"
 ```
 
-### 8. Get Presigned S3 Download URL (Configurable TTL 60-3600s)
+### 9. Get Presigned S3 Download URL (Configurable TTL 60-3600s)
 Protected by ownership verification — students can only download their own documents:
 ```bash
 curl -X GET "http://127.0.0.1:8000/documents/1/download?expires_in=600" \

@@ -182,3 +182,91 @@ def test_get_me_token_nonexistent_user(client):
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
     assert response.json()["detail"] == "Could not validate credentials"
 
+
+def test_change_password_success(client, student_user, student_headers):
+    """Test authenticated user can change password and log in with new password."""
+    payload = {
+        "current_password": "StudentPass123!",
+        "new_password": "NewSecretPassword456!"
+    }
+    response = client.post("/auth/change-password", json=payload, headers=student_headers)
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json()["message"] == "Password updated successfully"
+
+    # Verify old password no longer works
+    old_login_resp = client.post(
+        "/auth/login",
+        data={"username": student_user.username, "password": "StudentPass123!"}
+    )
+    assert old_login_resp.status_code == status.HTTP_401_UNAUTHORIZED
+
+    # Verify new password authenticates successfully
+    new_login_resp = client.post(
+        "/auth/login",
+        data={"username": student_user.username, "password": "NewSecretPassword456!"}
+    )
+    assert new_login_resp.status_code == status.HTTP_200_OK
+    assert "access_token" in new_login_resp.json()
+
+
+def test_change_password_wrong_current_password(client, student_headers):
+    """Test change password with incorrect current password returns 400."""
+    payload = {
+        "current_password": "IncorrectPassword999!",
+        "new_password": "NewSecretPassword456!"
+    }
+    response = client.post("/auth/change-password", json=payload, headers=student_headers)
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert response.json()["detail"] == "Current password does not match"
+
+
+def test_change_password_same_password(client, student_headers):
+    """Test change password where new password matches current password returns 400."""
+    payload = {
+        "current_password": "StudentPass123!",
+        "new_password": "StudentPass123!"
+    }
+    response = client.post("/auth/change-password", json=payload, headers=student_headers)
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert response.json()["detail"] == "New password cannot be the same as current password"
+
+
+def test_change_password_too_short(client, student_headers):
+    """Test change password with new password shorter than 8 characters returns 400."""
+    payload = {
+        "current_password": "StudentPass123!",
+        "new_password": "short"
+    }
+    response = client.post("/auth/change-password", json=payload, headers=student_headers)
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert response.json()["detail"] == "New password must be at least 8 characters long"
+
+
+def test_change_password_unauthenticated(client):
+    """Test change password without authentication credentials returns 401."""
+    payload = {
+        "current_password": "StudentPass123!",
+        "new_password": "NewSecretPassword456!"
+    }
+    response = client.post("/auth/change-password", json=payload)
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+
+def test_change_password_as_admin(client, admin_user, admin_headers):
+    """Test administrator can change password and authenticate with updated credentials."""
+    payload = {
+        "current_password": "AdminPass123!",
+        "new_password": "NewAdminSecret789!"
+    }
+    response = client.post("/auth/change-password", json=payload, headers=admin_headers)
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json()["message"] == "Password updated successfully"
+
+    new_login_resp = client.post(
+        "/auth/login",
+        data={"username": admin_user.username, "password": "NewAdminSecret789!"}
+    )
+    assert new_login_resp.status_code == status.HTTP_200_OK
+    assert "access_token" in new_login_resp.json()
+
+
