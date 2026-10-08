@@ -1,4 +1,4 @@
-name: Acedra CI / CD Pipeline
+name: Acedra CI / CD 
 
 on:
   push:
