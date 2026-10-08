@@ -19,8 +19,8 @@ resource "aws_iam_openid_connect_provider" "github" {
   url             = "https://token.actions.githubusercontent.com"
   client_id_list  = ["sts.amazonaws.com"]
   thumbprint_list = [
-    "6938fd4d98bab03faadb97b34396831e3780aea1",
-    "1c5860a5f213b826072174ee934fc5bc60e1893d"
+    "1c58a3a8518e8759bf075b76b750d4f2df264fcd",
+    "06d927fecd0a84aeba28aad1d808139470fe95c3"
   ]
 
   tags = {
@@ -109,7 +109,10 @@ resource "aws_iam_role" "github_actions" {
             "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
           }
           StringLike = {
-            "token.actions.githubusercontent.com:sub" = "repo:${var.github_repository}:*"
+            "token.actions.githubusercontent.com:sub" = [
+              "repo:${var.github_repository}:*",
+              "repo:${lower(var.github_repository)}:*"
+            ]
           }
         }
       }
