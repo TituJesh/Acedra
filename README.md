@@ -186,32 +186,14 @@ Acedra enforces strict principle-of-least-privilege authorization across three a
 
 ## API Endpoints
 
-Explore and test all endpoints interactively via Swagger UI at [`/docs`](http://127.0.0.1:8000/docs).
+Interactive documentation and real-time schema testing are available via Swagger UI at [`/docs`](http://127.0.0.1:8000/docs) or ReDoc at [`/redoc`](http://127.0.0.1:8000/redoc).
 
-| Module | Method | Endpoint | Description | Access |
-| :--- | :--- | :--- | :--- | :--- |
-| **Auth** | `POST` | `/auth/register` | Register an admin or student account | Public |
-| | `POST` | `/auth/login` | Authenticate and obtain JWT Bearer token | Public |
-| | `GET` | `/auth/me` | Inspect current user identity | Authenticated |
-| | `POST` | `/auth/change-password` | Update account password (validates current password) | Authenticated |
-| **Students** | `GET` | `/students/` | Browse students (filters: `dept`, `year`, `gender`) | Authenticated |
-| | `GET` | `/students/me` | Fetch caller's student record | Student / Admin |
-| | `GET` | `/students/search` | Search students by ID, Name, or Email | Authenticated |
-| | `GET` | `/students/stats/summary` | Demographic & departmental aggregate statistics | Authenticated |
-| | `POST` | `/students/` | Register new student profile record | Admin |
-| | `GET` | `/students/{id}` | Retrieve student profile by ID | Owner / Admin |
-| | `PUT` | `/students/{id}` | Update student record | Admin |
-| | `DELETE` | `/students/{id}` | Delete student record | Admin |
-| **Departments** | `GET` | `/departments/` | Browse all departments with pagination | Authenticated |
-| | `GET` | `/departments/{id}` | Retrieve department by ID | Authenticated |
-| | `POST` | `/departments/` | Create new department | Admin |
-| | `PUT` | `/departments/{id}` | Update department details | Admin |
-| | `DELETE` | `/departments/{id}` | Delete department (guarded against active enrollments) | Admin |
-| **Documents** | `POST` | `/documents/upload/{id}` | Upload student document to private S3 bucket | Admin |
-| | `GET` | `/documents/student/{id}`| List all documents for a student | Owner / Admin |
-| | `GET` | `/documents/{id}` | Retrieve document metadata | Owner / Admin |
-| | `GET` | `/documents/{id}/download` | Generate time-limited (300s TTL) S3 presigned URL | Owner / Admin |
-| | `DELETE` | `/documents/{id}` | Delete document from S3 and relational DB | Admin |
+| Module | Methods & Routes | Description | Access |
+| :--- | :--- | :--- | :--- |
+| **Auth** | `POST` `/auth/register`, `/login`, `/change-password`<br>`GET` `/auth/me` | User registration, JWT token generation, password rotation, identity lookup | Public / Authenticated |
+| **Students** | `GET, POST` `/students/`<br>`GET` `/students/me`, `/search`, `/stats/summary`<br>`GET, PUT, DELETE` `/students/{id}` | Directory listing (filters: `dept`, `year`, `gender`), demographics, search, profile CRUD | Authenticated (Admin write) |
+| **Departments** | `GET, POST` `/departments/`<br>`GET, PUT, DELETE` `/departments/{id}` | Academic department catalog, enrollment-guarded deletions, updates | Authenticated (Admin write) |
+| **Documents** | `POST` `/documents/upload/{id}`<br>`GET` `/documents/student/{id}`, `/{id}`<br>`GET` `/documents/{id}/download`<br>`DELETE` `/documents/{id}` | Private S3 uploads (10MB limit), metadata browsing, time-limited presigned URLs (300s TTL), deletion | Owner / Admin |
 
 ---
 
