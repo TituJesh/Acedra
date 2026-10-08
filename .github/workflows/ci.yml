@@ -36,7 +36,7 @@ jobs:
         env:
           ENVIRONMENT: testing
           SECRET_KEY: acedra-ci-test-secret-key-minimum-32-chars
-          DATABASE_URL: sqlite:///:memory:
+          DATABASE_URL: "sqlite:///:memory:"
           AWS_REGION: ap-south-1
           S3_BUCKET_NAME: test-acedra-documents-bucket
         run: pytest -v
