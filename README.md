@@ -1,6 +1,6 @@
 <div align="center">
 
-  <h1 align="center">🎓 Acedra</h1>
+  <h1 align="center"> Acedra</h1>
 
   <p align="center">
     <strong>Production-ready, cloud-native Student Information & Cloud Document Management System.</strong>
