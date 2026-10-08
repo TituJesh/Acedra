@@ -36,25 +36,14 @@
 - [Overview](#overview)
 - [Key Features](#key-features)
 - [Tech Stack](#tech-stack)
-- [Core Resource Modules](#core-resource-modules)
-- [System Architecture](#system-architecture)
 - [Database Schema (ERD)](#database-schema-erd)
 - [Quickstart & Local Development](#quickstart--local-development)
-  - [Prerequisites](#prerequisites)
-  - [Manual Setup (Local venv)](#manual-setup-local-venv)
-- [Environment Variables](#environment-variables)
-- [Database Migrations (Alembic)](#database-migrations-alembic)
 - [Role-Based Access Control (RBAC)](#role-based-access-control-rbac)
-- [API Walkthrough & cURL Examples](#api-walkthrough--curl-examples)
+- [API Endpoints](#api-endpoints)
 - [AWS Cloud Infrastructure](#aws-cloud-infrastructure)
-  - [Amazon S3 Bucket Architecture](#amazon-s3-bucket-architecture)
-  - [AWS Secrets Manager](#aws-secrets-manager)
-  - [Least-Privilege IAM Policy](#least-privilege-iam-policy)
-  - [Infrastructure as Code (IaC) & Cloud Provisioning](#infrastructure-as-code-iac--cloud-provisioning)
 - [Testing & Quality Assurance](#testing--quality-assurance)
-- [Security](#security)
+- [Security Highlights](#security-highlights)
 - [Production Cloud Deployment](#production-cloud-deployment)
-- [Support](#support)
 - [License & Author](#license--author)
 
 ---
@@ -63,108 +52,30 @@
 
 **Acedra** is an enterprise-grade Student Information & Cloud Document Management RESTful API backend engineered for academic institutions, universities, and departmental faculties.
 
-The application is structured into modular, decoupled layers: a **FastAPI** asynchronous REST gateway with dependency-injected OAuth2 and RBAC authorization, **SQLAlchemy 2.0** ORM for relational persistence on **PostgreSQL 16**, **Alembic** for automated migration tracking, **Amazon S3** for secure multi-tenant document storage with short-lived presigned URLs, and **AWS Secrets Manager** for dynamic zero-trust cryptographic key management.
+The application features an asynchronous **FastAPI** REST gateway with OAuth2 authentication and granular RBAC, **SQLAlchemy 2.0** ORM for relational persistence on **PostgreSQL 16**, **Alembic** schema migrations, **Amazon S3** for secure multi-tenant document storage with short-lived presigned URLs, and **AWS Secrets Manager** for zero-trust cryptographic key management.
 
 ---
 
 ## Key Features
 
-### REST API Surface
-- Clean RESTful endpoints organized across 4 domain modules (**Auth**, **Students**, **Departments**, **Documents**).
-- Automated OpenAPI 3.0 interactive documentation via **Swagger UI** (`/docs`) and **ReDoc** (`/redoc`).
-- Strict schema validation and auto-generated data contracts powered by **Pydantic v2**.
-
-### Authentication & RBAC
-- Stateless **JWT (JSON Web Token)** authentication over standard OAuth2 Password Request flow (`/auth/login`).
-- Cryptographic password hashing using **Bcrypt** with dynamic salting via Passlib.
-- Hierarchical Role-Based Access Control enforcing strict separation between `admin` and `student` roles.
-- Self-service profile resolution (`/auth/me` and `/students/me`).
-- Authenticated credential rotation (`/auth/change-password`) with current password verification and length validation.
-
-### Cloud Document Vault & S3
-- Secure multi-tenant file ingestion streaming directly to private **Amazon S3** buckets.
-- Collision-proof file partitioning using UUIDv4 key paths (`students/{student_id}/{uuid4}_{filename}`).
-- Time-limited (300 seconds) HMAC-SHA256 **presigned download URLs**, preventing direct public bucket exposure.
-- Cascading deletion: deleting a document removes both S3 cloud objects and relational metadata.
-
-### Cloud-Native Secrets Management
-- Zero hardcoded production credentials.
-- Dual-mode configuration engine: automatically reads local configuration in development (`ENVIRONMENT=local`) and dynamically retrieves signing secrets from **AWS Secrets Manager** (`acedra/jwt`) in production (`ENVIRONMENT=production`).
-
-### Relational Integrity & Migrations
-- Robust ACID compliance backed by **PostgreSQL 16**.
-- Relational mapping with foreign key cascades and one-to-one / one-to-many relationship declarations.
-- Fully reversible, version-controlled database schema migrations managed by **Alembic**.
-
-### Observability & Audit Logging
-- Structured logging pipeline tracking high-value audit events: user registrations, failed/successful logins, student profile creations, and S3 document uploads/deletions.
+- **RESTful Architecture**: Clean, modular API routes across Authentication, Students, Departments, and Documents.
+- **Role-Based Access Control**: Strict segregation between `admin` and `student` roles, preventing unauthorized cross-tenant data access.
+- **Secure Document Vault**: Multi-tenant file storage streaming to private Amazon S3 with time-limited (300s TTL) HMAC presigned download URLs.
+- **Zero Hardcoded Secrets**: Automatic dual-mode configuration (local `.env` for dev, AWS Secrets Manager for production).
+- **Relational Integrity**: PostgreSQL 16 schema backed by SQLAlchemy 2.0 ORM with automated, reversible Alembic migrations.
+- **Auto-Generated Docs**: Interactive OpenAPI 3.0 documentation via Swagger UI (`/docs`) and ReDoc (`/redoc`).
 
 ---
 
 ## Tech Stack
 
-- **Backend Framework**: Python 3.12, FastAPI, Pydantic v2, Starlette
-- **ASGI Web Server**: Uvicorn (worker clustering with Gunicorn for production)
+- **Backend Framework**: Python 3.12, FastAPI, Pydantic v2
+- **ASGI Server**: Uvicorn (worker clustering with Gunicorn for production)
 - **Database & Driver**: PostgreSQL 16, Psycopg 3 (`psycopg[binary]`)
 - **ORM & Migrations**: SQLAlchemy 2.0, Alembic
 - **Cloud Storage & Security**: AWS S3 (`boto3`), AWS Secrets Manager
-- **Authentication & Cryptography**: Python-Jose (JWT HS256), Passlib, Bcrypt, OAuth2 Password Bearer
-- **DevOps & Containerization**: Docker, Docker Compose, Amazon ECR, GitHub Actions (OIDC)
-- **Infrastructure as Code (IaC)**: Terraform, AWS CloudFormation
-
----
-
-## Core Resource Modules
-
-| Module | Base Path | Description | Access Level |
-| :--- | :--- | :--- | :--- |
-| **Auth** | `/auth` | User registration, OAuth2 credential exchange, self identity inspection (`/me`), and admin validation | Public / Authenticated |
-| **Students** | `/students` | Student profile creation, directory listing, profile updates, fuzzy search (`/search`), and self profile | Authenticated (Admin for write) |
-| **Departments** | `/departments`| Academic department creation, code validation, directory lookup, and department updates | Authenticated (Admin for write) |
-| **Documents** | `/documents` | S3 document upload, student file listing, presigned download link generation, and file deletion | Authenticated (Admin for upload/delete) |
-| **Observability** | `/`, `/docs`, `/redoc` | Base healthcheck endpoint, interactive Swagger UI, and OpenAPI schema documentation | Public |
-
----
-
-## System Architecture
-
-```mermaid
-flowchart TD
-    subgraph Clients["Clients & Consumers"]
-        AdminApp["Admin Dashboard / Portal"]
-        StudentApp["Student Portal / Mobile"]
-    end
-
-    subgraph Gateway["Acedra API Gateway (FastAPI)"]
-        AuthRouter["/auth\nAuthentication Router"]
-        StudentRouter["/students\nStudent Management"]
-        DeptRouter["/departments\nDepartment Registry"]
-        DocRouter["/documents\nDocument Vault"]
-        
-        SecurityLayer["OAuth2 Bearer & RBAC Layer\n(require_admin / get_current_user)"]
-        
-        AuthRouter --> SecurityLayer
-        StudentRouter --> SecurityLayer
-        DeptRouter --> SecurityLayer
-        DocRouter --> SecurityLayer
-    end
-
-    subgraph CloudServices["AWS Cloud Services"]
-        SecretsManager["AWS Secrets Manager\n(Secret: acedra/jwt)"]
-        S3Bucket["AWS S3 Bucket\n(students/{id}/{uuid}_{file})"]
-    end
-
-    subgraph Storage["Database Layer"]
-        Postgres[(PostgreSQL 16 Engine)]
-        AlembicEngine["Alembic Migrations"]
-    end
-
-    Clients -->|Bearer Token / HTTPS| Gateway
-    SecurityLayer -.->|Fetch Secret in Prod| SecretsManager
-    DocRouter -->|Stream Upload & Presign URL| S3Bucket
-    Gateway -->|SQLAlchemy 2.0 ORM| Postgres
-    AlembicEngine -->|Schema Revisions| Postgres
-```
+- **Authentication**: JWT (HS256 via Python-Jose), native Bcrypt password hashing
+- **DevOps & IaC**: Docker, Amazon ECR, GitHub Actions (OIDC), Terraform, AWS CloudFormation
 
 ---
 
@@ -220,370 +131,134 @@ erDiagram
 
 ## Quickstart & Local Development
 
-### Prerequisites
+### 1. Clone & Set Up Virtual Environment
 
-- **Python**: Version `3.11` or `3.12`
-- **PostgreSQL**: Version `15+` or `16+` (local service or Docker container)
-- **AWS Account & CLI**: Required for S3 uploads and production Secrets Manager (configured with `aws configure`)
-
----
-
-### Manual Setup (Local venv)
-
-#### 1. Clone the repository
 ```bash
 git clone https://github.com/TituJesh/Acedra.git
 cd Acedra
-```
 
-#### 2. Create and activate a virtual environment
-```bash
-# On Linux / macOS:
-python3 -m venv venv
-source venv/bin/activate
-
-# On Windows (PowerShell):
+# Create and activate virtual environment
 python -m venv venv
-.\venv\Scripts\Activate.ps1
-```
+# Linux / macOS: source venv/bin/activate
+# Windows PowerShell: .\venv\Scripts\Activate.ps1
 
-#### 3. Install dependencies
-```bash
+# Install dependencies
 pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-#### 4. Configure environment variables
+### 2. Configure Environment
+
+Copy the example configuration file:
 ```bash
 cp .env.example .env
 ```
-Edit `.env` to match your local PostgreSQL database and AWS credentials:
-```ini
-ENVIRONMENT=local
-DATABASE_URL=postgresql+psycopg://postgres:your_password@localhost:5432/acedra
-SECRET_KEY=your-32-byte-hex-secret-key
-AWS_REGION=ap-south-1
-S3_BUCKET_NAME=your-s3-bucket-name
-```
+Update `.env` with your PostgreSQL connection URL and AWS credentials (see [`.env.example`](.env.example) for details).
 
-#### 5. Initialize the database & run migrations
-Ensure your PostgreSQL server has the `acedra` database created (`CREATE DATABASE acedra;`), then run:
+### 3. Run Migrations & Start Server
+
 ```bash
+# Apply database migrations
 alembic upgrade head
-```
 
-#### 6. Start the development server
-```bash
+# Start local development server
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
-The API is now running at **http://127.0.0.1:8000** (Swagger UI at **http://127.0.0.1:8000/docs**).
-
----
-
-## Environment Variables
-
-| Variable | Type | Required | Default | Description |
-| :--- | :---: | :---: | :--- | :--- |
-| `ENVIRONMENT` | `string` | **Yes** | `local` | Set to `local` for local key resolution or `production` for AWS Secrets Manager. |
-| `DATABASE_URL` | `string` | **Yes** | — | PostgreSQL connection URI (`postgresql+psycopg://<user>:<password>@<host>:<port>/<db>`). |
-| `SECRET_KEY` | `string` | **Yes** (local) | — | HMAC-SHA256 signing key used when `ENVIRONMENT=local`. |
-| `AWS_REGION` | `string` | No | `ap-south-1` | AWS region hosting S3 buckets and Secrets Manager. |
-| `S3_BUCKET_NAME` | `string` | **Yes** (docs) | — | Amazon S3 bucket name for student files. |
-
----
-
-## Database Migrations (Alembic)
-
-Acedra tracks all database changes using Alembic:
-
-```bash
-# Apply all pending migrations to the latest revision
-alembic upgrade head
-
-# Revert the most recent migration
-alembic downgrade -1
-
-# Generate a new migration after updating models in app/models/
-alembic revision --autogenerate -m "add new column or table"
-
-# View current migration version
-alembic current
-```
+- **API Base URL**: `http://127.0.0.1:8000`
+- **Interactive Swagger UI**: `http://127.0.0.1:8000/docs`
+- **ReDoc Documentation**: `http://127.0.0.1:8000/redoc`
 
 ---
 
 ## Role-Based Access Control (RBAC)
 
-Access is strictly controlled by role-based dependency injection:
+Acedra enforces strict principle-of-least-privilege authorization across three access tiers:
 
-| Route | Method | Public | Student Role | Admin Role | Action |
-| :--- | :---: | :---: | :---: | :---: | :--- |
-| `/auth/register` | `POST` | ✅ | ✅ | ✅ | Register user account (`admin` or `student`) |
-| `/auth/login` | `POST` | ✅ | ✅ | ✅ | Generate Bearer token |
-| `/auth/me` | `GET` | ❌ | ✅ | ✅ | Retrieve current user profile |
-| `/auth/change-password` | `POST` | ❌ | ✅ | ✅ | Update password (validates current password) |
-| `/auth/admin-test` | `GET` | ❌ | ❌ | ✅ | Admin route verification |
-| `/departments/` | `GET` | ❌ | ✅ | ✅ | Browse departments (supports `skip`, `limit`) |
-| `/departments/` | `POST` | ❌ | ❌ | ✅ | Create department |
-| `/departments/{id}` | `GET` | ❌ | ✅ | ✅ | Retrieve department by ID |
-| `/departments/{id}` | `PUT` | ❌ | ❌ | ✅ | Update department details |
-| `/departments/{id}` | `DELETE` | ❌ | ❌ | ✅ | Delete department (guarded against active enrollments) |
-| `/students/` | `GET` | ❌ | ✅ | ✅ | Browse students (supports `skip`, `limit`, `department_id`, `year`, `gender`) |
-| `/students/stats/summary` | `GET` | ❌ | ✅ | ✅ | Demographic and departmental student aggregation stats |
-| `/students/` | `POST` | ❌ | ❌ | ✅ | Register new student record |
-| `/students/me` | `GET` | ❌ | ✅ | ✅ | Fetch caller's student record |
-| `/students/search` | `GET` | ❌ | ✅ | ✅ | Search students by ID, Name, or Email (supports `skip`, `limit`) |
-| `/students/{id}` | `GET` | ❌ | Self only | ✅ | Fetch student record (restricted to owner or admin) |
-| `/students/{id}` | `PUT` | ❌ | ❌ | ✅ | Modify student record |
-| `/students/{id}` | `DELETE` | ❌ | ❌ | ✅ | Delete student record |
-| `/documents/` | `GET` | ❌ | ❌ | ✅ | List all documents across students (supports `skip`, `limit`, `student_id`, `file_type`) |
-| `/documents/upload/{id}` | `POST` | ❌ | ❌ | ✅ | Upload document to S3 (validated type & max 10MB) |
-| `/documents/student/{id}`| `GET` | ❌ | Self only | ✅ | List documents for student (owner or admin) |
-| `/documents/{id}` | `GET` | ❌ | Self only | ✅ | Retrieve document metadata (owner or admin) |
-| `/documents/{id}/download`| `GET` | ❌ | Self only | ✅ | Generate presigned download URL (supports custom `expires_in` 60-3600s) |
-| `/documents/{id}` | `DELETE`| ❌ | ❌ | ✅ | Delete document from S3 and DB |
+| Tier | Role Scope & Permissions | Key Operations |
+| :--- | :--- | :--- |
+| **Public** | Unauthenticated visitors | Account registration (`/auth/register`), login (`/auth/login`), API docs (`/docs`), health check (`/health`) |
+| **Student** | Self-service student operations | View own profile (`/students/me`, `/auth/me`), change password, browse departments, view & download own documents |
+| **Admin** | Full academic & administrative control | Student & department CRUD, document upload/deletion, student search, aggregate demographics & stats |
+
+> 🔒 **Tenancy Isolation**: Ownership is enforced at the service level. A student attempting to access or download another student's record or documents receives an immediate `403 Forbidden`.
 
 ---
 
-## API Walkthrough & cURL Examples
+## API Endpoints
 
-### 1. Register an Administrator
-```bash
-curl -X POST "http://127.0.0.1:8000/auth/register" \
-     -H "Content-Type: application/json" \
-     -d '{
-       "username": "admin_titu",
-       "email": "admin@acedra.edu",
-       "password": "SuperSecretPassword123!",
-       "role": "admin"
-     }'
-```
+Explore and test all endpoints interactively via Swagger UI at [`/docs`](http://127.0.0.1:8000/docs).
 
-### 2. Login to Obtain Bearer Token
-```bash
-curl -X POST "http://127.0.0.1:8000/auth/login" \
-     -H "Content-Type: application/x-www-form-urlencoded" \
-     -d "username=admin_titu&password=SuperSecretPassword123!"
-```
-**Response:**
-```json
-{
-  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "token_type": "bearer"
-}
-```
-
-### 3. Change Account Password
-```bash
-curl -X POST "http://127.0.0.1:8000/auth/change-password" \
-     -H "Authorization: Bearer <YOUR_ACCESS_TOKEN>" \
-     -H "Content-Type: application/json" \
-     -d '{
-       "current_password": "SuperSecretPassword123!",
-       "new_password": "NewUltraSecurePassword456!"
-     }'
-```
-**Response:**
-```json
-{
-  "message": "Password updated successfully"
-}
-```
-
-### 4. Create Department
-```bash
-curl -X POST "http://127.0.0.1:8000/departments/" \
-     -H "Authorization: Bearer <YOUR_ACCESS_TOKEN>" \
-     -H "Content-Type: application/json" \
-     -d '{"name": "Computer Science", "code": "CS"}'
-```
-
-### 5. Create Student Record
-```bash
-curl -X POST "http://127.0.0.1:8000/students/" \
-     -H "Authorization: Bearer <YOUR_ACCESS_TOKEN>" \
-     -H "Content-Type: application/json" \
-     -d '{
-       "user_id": 1,
-       "student_id": "STU2026001",
-       "first_name": "Titu",
-       "last_name": "Jesh",
-       "email": "titu@acedra.edu",
-       "phone": "+919876543210",
-       "date_of_birth": "2002-08-15",
-       "gender": "Male",
-       "department_id": 1,
-       "year": 4,
-       "address": "Bangalore, India"
-     }'
-```
-
-### 6. Browse Students with Pagination & Filters
-Filter by department, academic year, and gender:
-```bash
-curl -X GET "http://127.0.0.1:8000/students/?skip=0&limit=10&department_id=1&year=4&gender=Male" \
-     -H "Authorization: Bearer <YOUR_ACCESS_TOKEN>"
-```
-
-### 7. Retrieve Student Demographic & Department Statistics
-```bash
-curl -X GET "http://127.0.0.1:8000/students/stats/summary" \
-     -H "Authorization: Bearer <YOUR_ACCESS_TOKEN>"
-```
-
-### 8. Upload Student Document to S3
-Validates allowed extensions (`.pdf`, `.png`, `.jpg`, `.jpeg`, `.docx`, `.txt`) and enforces a 10MB size ceiling:
-```bash
-curl -X POST "http://127.0.0.1:8000/documents/upload/1" \
-     -H "Authorization: Bearer <YOUR_ACCESS_TOKEN>" \
-     -F "file=@sample_transcript.pdf;type=application/pdf"
-```
-
-### 9. Get Presigned S3 Download URL (Configurable TTL 60-3600s)
-Protected by ownership verification — students can only download their own documents:
-```bash
-curl -X GET "http://127.0.0.1:8000/documents/1/download?expires_in=600" \
-     -H "Authorization: Bearer <YOUR_ACCESS_TOKEN>"
-```
-**Response:**
-```json
-{
-  "file_name": "sample_transcript.pdf",
-  "download_url": "https://acedra-documents.s3.ap-south-1.amazonaws.com/students/1/...?X-Amz-Signature=...",
-  "expires_in": 600
-}
-```
+| Module | Method | Endpoint | Description | Access |
+| :--- | :--- | :--- | :--- | :--- |
+| **Auth** | `POST` | `/auth/register` | Register an admin or student account | Public |
+| | `POST` | `/auth/login` | Authenticate and obtain JWT Bearer token | Public |
+| | `GET` | `/auth/me` | Inspect current user identity | Authenticated |
+| | `POST` | `/auth/change-password` | Update account password (validates current password) | Authenticated |
+| **Students** | `GET` | `/students/` | Browse students (filters: `dept`, `year`, `gender`) | Authenticated |
+| | `GET` | `/students/me` | Fetch caller's student record | Student / Admin |
+| | `GET` | `/students/search` | Search students by ID, Name, or Email | Authenticated |
+| | `GET` | `/students/stats/summary` | Demographic & departmental aggregate statistics | Authenticated |
+| | `POST` | `/students/` | Register new student profile record | Admin |
+| | `GET` | `/students/{id}` | Retrieve student profile by ID | Owner / Admin |
+| | `PUT` | `/students/{id}` | Update student record | Admin |
+| | `DELETE` | `/students/{id}` | Delete student record | Admin |
+| **Departments** | `GET` | `/departments/` | Browse all departments with pagination | Authenticated |
+| | `GET` | `/departments/{id}` | Retrieve department by ID | Authenticated |
+| | `POST` | `/departments/` | Create new department | Admin |
+| | `PUT` | `/departments/{id}` | Update department details | Admin |
+| | `DELETE` | `/departments/{id}` | Delete department (guarded against active enrollments) | Admin |
+| **Documents** | `POST` | `/documents/upload/{id}` | Upload student document to private S3 bucket | Admin |
+| | `GET` | `/documents/student/{id}`| List all documents for a student | Owner / Admin |
+| | `GET` | `/documents/{id}` | Retrieve document metadata | Owner / Admin |
+| | `GET` | `/documents/{id}/download` | Generate time-limited (300s TTL) S3 presigned URL | Owner / Admin |
+| | `DELETE` | `/documents/{id}` | Delete document from S3 and relational DB | Admin |
 
 ---
 
 ## AWS Cloud Infrastructure
 
-### Amazon S3 Bucket Architecture
-- Buckets are configured with **Block All Public Access** enabled.
-- Objects are placed using collision-free partitioned keys:
-  ```text
-  s3://<S3_BUCKET_NAME>/
-  └── students/
-      └── <student_id>/
-          └── <uuid4>_<filename>
-  ```
+Acedra leverages AWS managed services configured for least privilege and zero-trust security:
 
-### AWS Secrets Manager
-In production mode, the application retrieves the JWT signing key at startup:
-```bash
-aws secretsmanager create-secret \
-    --name "acedra/jwt" \
-    --description "Acedra JWT Secret Key" \
-    --secret-string '{"SECRET_KEY":"your-cryptographically-secure-hex-string"}' \
-    --region ap-south-1
-```
-
-### Least-Privilege IAM Policy
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "AcedraS3DocumentVault",
-      "Effect": "Allow",
-      "Action": [
-        "s3:PutObject",
-        "s3:GetObject",
-        "s3:DeleteObject"
-      ],
-      "Resource": "arn:aws:s3:::acedra-documents-*/*"
-    },
-    {
-      "Sid": "AcedraSecretsAccess",
-      "Effect": "Allow",
-      "Action": ["secretsmanager:GetSecretValue"],
-      "Resource": "arn:aws:secretsmanager:*:*:secret:acedra/jwt-*"
-    }
-  ]
-}
-```
-
-### Infrastructure as Code (IaC) & Cloud Provisioning
-
-Acedra provides automated Infrastructure as Code (IaC) templates and bootstrap scripts to provision Amazon ECR repositories and configure keyless GitHub Actions OIDC federation:
-
-| Tool | Path | Description |
-| :--- | :--- | :--- |
-| **Terraform** | [`infra/terraform/`](infra/terraform/) | Modular AWS provider configuration managing ECR repository, automated image lifecycle policy, IAM OIDC identity provider, and GitHub Actions deployment role. |
-| **CloudFormation** | [`infra/cloudformation/ecr-oidc.yaml`](infra/cloudformation/ecr-oidc.yaml) | CloudFormation template to deploy the complete ECR and OIDC infrastructure stack in AWS Console or CLI. |
-| **Automation Scripts** | [`scripts/`](scripts/) | Ready-to-run setup scripts ([`setup-aws-oidc-ecr.ps1`](scripts/setup-aws-oidc-ecr.ps1) and [`setup-aws-oidc-ecr.sh`](scripts/setup-aws-oidc-ecr.sh)) for fast provisioning. |
-
-#### Quick Provisioning with Terraform
-```bash
-cd infra/terraform
-terraform init
-terraform plan
-terraform apply
-```
-
-> [!TIP]
-> For a detailed architecture walkthrough and step-by-step CI/CD setup, see the [AWS ECR OIDC Setup Guide](docs/aws-ecr-oidc-setup.md).
+- **Amazon S3**: Private document storage with partitioned key paths (`students/{id}/{uuid}_{file}`) and time-limited HMAC presigned URLs. Public access is completely blocked.
+- **AWS Secrets Manager**: Dynamically fetches the JWT secret key (`acedra/jwt`) at startup in production environments.
+- **Amazon ECR**: Container registry hosting production Docker images built and pushed automatically by GitHub Actions CI/CD.
+- **Infrastructure as Code (IaC)**: Automated provisioning via [Terraform](infra/terraform/) or [CloudFormation](infra/cloudformation/ecr-oidc.yaml) with keyless GitHub Actions OIDC federation. Refer to the [AWS ECR OIDC Setup Guide](docs/aws-ecr-oidc-setup.md).
 
 ---
 
 ## Testing & Quality Assurance
 
+The test suite runs against an isolated SQLite in-memory database with fully mocked AWS S3 services:
+
 ```bash
 # Run pytest test suite
 pytest -v
 
-# Run with test coverage report
+# Run with test coverage
 pytest --cov=app --cov-report=term-missing
-
-# Code formatting
-black app/ alembic/
-
-# Linting with flake8
-flake8 app/ --max-line-length=88
 ```
 
 ---
 
-## Security
+## Security Highlights
 
-- **Zero Hardcoded Secrets**: Secrets are injected via `.env` in local development and loaded from AWS Secrets Manager in production.
-- **Bcrypt Password Hashing**: Passwords are never saved in cleartext; salted hashes are generated via passlib.
-- **Private Object Storage**: Amazon S3 objects are completely private; client retrieval occurs through time-bounded (300-second TTL) HMAC presigned URLs.
-- **Student Profile & Document Isolation**: Cross-student data leakage is guarded against by verifying caller ownership against student user IDs (`403 Forbidden` for unauthorized callers).
-- **Upload File Validation & Quotas**: Document uploads validate extensions against an allowlist (`.pdf`, `.png`, `.jpg`, `.jpeg`, `.docx`, `.txt`) and enforce a 10MB payload limit.
-- **UUIDv4 Collision Shielding**: Uploaded files receive isolated UUIDv4 prefixes preventing filename collisions or overwrites.
-- **SQL Parameterization**: SQLAlchemy 2.0 uses parameterized query bindings, neutralizing SQL injection vectors.
-- **Payload Sanitization**: Pydantic v2 schemas enforce strict validation on emails, dates, and input lengths.
-- **Latency Diagnostics**: All API responses provide `X-Process-Time` timing headers for performance profiling.
+- **Zero Hardcoded Secrets**: Environment-driven secret injection (`.env` in local, AWS Secrets Manager in production).
+- **Cryptographic Password Hashing**: Passwords hashed with salt using native `bcrypt`.
+- **Private Object Storage**: No public S3 bucket access; retrieval is mediated via short-lived HMAC presigned URLs.
+- **Cross-Tenant Isolation**: Ownership verification guards student records and files against unauthorized access (`403 Forbidden`).
+- **Input Sanitization & SQL Safety**: Pydantic v2 data contract validation and SQLAlchemy 2.0 parameterized queries eliminate SQL injection risks.
 
 ---
 
 ## Production Cloud Deployment
 
-Acedra is designed for cloud-native deployment across containerized services:
+```bash
+# Production command with Gunicorn and Uvicorn workers:
+gunicorn -w 4 -k uvicorn.workers.UvicornWorker app.main:app --bind 0.0.0.0:8000
+```
 
-- **Container Registry**: **Amazon ECR** (Elastic Container Registry) with keyless GitHub Actions OIDC authentication.
-- **CI / CD Pipeline**: Automated test execution, Docker build, and ECR push on merge to `main`. See [AWS ECR OIDC Setup Guide](docs/aws-ecr-oidc-setup.md).
-- **Web / API Service**: Deployable as a container on **AWS ECS (Fargate)**, **AWS EC2**, **Render**, or **DigitalOcean App Platform**.
-- **Managed Database**: **Amazon RDS for PostgreSQL 16** or **Neon Database**.
-- **Object Storage**: **Amazon S3** bucket in the corresponding VPC region.
-- **Secrets**: **AWS Secrets Manager** (`acedra/jwt`).
-- **Production Command**:
-  ```bash
-  gunicorn -w 4 -k uvicorn.workers.UvicornWorker app.main:app --bind 0.0.0.0:8000
-  ```
-
----
-
-## Support
-
-If you find this project helpful, please consider giving it a star on GitHub!
-
-<p align="left">
-  <a href="https://github.com/TituJesh/Acedra">
-    <img src="https://img.shields.io/github/stars/TituJesh/Acedra?style=social" alt="Star on GitHub" />
-  </a>
-</p>
+- **Container Image**: Built via multi-stage [Dockerfile](Dockerfile) with an unprivileged non-root user (`appuser`).
+- **CI / CD Pipeline**: Automated GitHub Actions testing, Docker builds, and keyless ECR publishing on every push to `main`.
 
 ---
 
