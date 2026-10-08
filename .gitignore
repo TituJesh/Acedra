@@ -20,3 +20,10 @@ uploads/
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+crash.log
+[._]terraform*
