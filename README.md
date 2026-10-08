@@ -44,6 +44,7 @@
 - [Testing & Quality Assurance](#testing--quality-assurance)
 - [Security Highlights](#security-highlights)
 - [Production Cloud Deployment](#production-cloud-deployment)
+- [Support](#support)
 - [License & Author](#license--author)
 
 ---
@@ -241,6 +242,12 @@ gunicorn -w 4 -k uvicorn.workers.UvicornWorker app.main:app --bind 0.0.0.0:8000
 
 - **Container Image**: Built via multi-stage [Dockerfile](Dockerfile) with an unprivileged non-root user (`appuser`).
 - **CI / CD Pipeline**: Automated GitHub Actions testing, Docker builds, and keyless ECR publishing on every push to `main`.
+
+---
+
+## Support
+
+If you find this project useful, please consider giving it a ⭐ star on [GitHub](https://github.com/TituJesh/Acedra) — it helps support the project!
 
 ---
 
