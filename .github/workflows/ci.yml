@@ -72,24 +72,28 @@ jobs:
             echo "configured=true" >> $GITHUB_OUTPUT
           fi
 
-      - name: Inspect OIDC Token Claims
+      - name: Inspect OIDC Token Claims & Test STS
         if: steps.check-secrets.outputs.configured == 'true'
         run: |
           JWT_VAL=$(curl -sLS "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=sts.amazonaws.com" -H "User-Agent: actions/bash" -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" | jq -r '.value')
           python3 -c "
-          import base64, json, os, sys
+          import base64, json, sys
           jwt = sys.argv[1]
           if '.' in jwt:
               payload = jwt.split('.')[1]
               payload += '=' * ((4 - len(payload) % 4) % 4)
               claims = json.loads(base64.urlsafe_b64decode(payload))
-              lines = ['### 🔍 GitHub Actions OIDC Token Claims', '', '| Claim | Value |', '|:---|:---|']
-              for k in ['sub', 'aud', 'iss', 'repository', 'repository_owner', 'ref', 'job_workflow_ref']:
-                  if k in claims:
-                      lines.append(f'| **{k}** | \`{claims[k]}\` |')
-              with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as f:
-                  f.write('\n'.join(lines) + '\n\n')
+              print('--- OIDC CLAIMS ---')
+              for k in ['iss', 'aud', 'sub', 'repository', 'repository_owner', 'ref', 'job_workflow_ref']:
+                  print(f'{k}: {claims.get(k)}')
+              print('-------------------')
           " "$JWT_VAL"
+          echo "Testing STS AssumeRoleWithWebIdentity via AWS CLI..."
+          aws sts assume-role-with-web-identity \
+            --role-arn "${{ secrets.AWS_ROLE_ARN }}" \
+            --role-session-name "DebugSession" \
+            --web-identity-token "$JWT_VAL" \
+            --duration-seconds 900 || true
 
       - name: Configure AWS Credentials via OIDC
         if: steps.check-secrets.outputs.configured == 'true'
