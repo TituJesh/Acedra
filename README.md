@@ -40,7 +40,7 @@
 - [Quickstart & Local Development](#quickstart--local-development)
 - [Role-Based Access Control (RBAC)](#role-based-access-control-rbac)
 - [API Endpoints](#api-endpoints)
-- [AWS Cloud Infrastructure](#aws-cloud-infrastructure)
+- [AWS Cloud Architecture](#aws-cloud-architecture)
 - [Testing & Quality Assurance](#testing--quality-assurance)
 - [Security Highlights](#security-highlights)
 - [Production Cloud Deployment](#production-cloud-deployment)
@@ -198,14 +198,30 @@ Interactive documentation and real-time schema testing are available via Swagger
 
 ---
 
-## AWS Cloud Infrastructure
+## AWS Cloud Architecture
 
-Acedra leverages AWS managed services configured for least privilege and zero-trust security:
+<p align="center">
+  <img src="docs/images/aws-architecture.jpg" alt="AWS Cloud Architecture — Acedra Backend (ap-south-1)" width="100%" />
+</p>
 
-- **Amazon S3**: Private document storage with partitioned key paths (`students/{id}/{uuid}_{file}`) and time-limited HMAC presigned URLs. Public access is completely blocked.
-- **AWS Secrets Manager**: Dynamically fetches the JWT secret key (`acedra/jwt`) at startup in production environments.
-- **Amazon ECR**: Container registry hosting production Docker images built and pushed automatically by GitHub Actions CI/CD.
-- **Infrastructure as Code (IaC)**: Automated provisioning via [Terraform](infra/terraform/) or [CloudFormation](infra/cloudformation/ecr-oidc.yaml) with keyless GitHub Actions OIDC federation. Refer to the [AWS ECR OIDC Setup Guide](docs/aws-ecr-oidc-setup.md).
+Acedra is engineered for high availability, zero-trust security, and horizontal scalability in the **AWS Asia Pacific (Mumbai) `ap-south-1`** region:
+
+### 1. DevOps & Keyless CI/CD Pipeline
+- **GitHub Repository & Actions**: Automated linting, test suite execution, and container packaging on every commit.
+- **Keyless OIDC Authentication**: GitHub Actions federates directly with the **AWS IAM OIDC Provider** (`token.actions.githubusercontent.com`) using short-lived STS tokens—eliminating static, long-lived AWS secret access keys.
+- **Amazon ECR**: Private container registry hosting production multi-stage Docker images with automated vulnerability scanning on push and lifecycle cleanup rules.
+
+### 2. Isolated Virtual Private Cloud (VPC)
+- **Client Ingress**: Web and mobile clients securely connect through the **AWS Internet Gateway (IGW)**.
+- **Public Subnet**: An internet-facing **Application Load Balancer (ALB)** manages incoming client requests, terminates SSL/TLS, and distributes traffic.
+- **Private Application Subnet**: **Amazon ECS / EC2** cluster running the containerized **FastAPI Backend** inside an **Auto Scaling Group (ASG)** to scale out/in based on demand.
+- **Private Database Subnet**: **Amazon RDS for PostgreSQL 16** with synchronous replication to a **Multi-AZ Standby** instance for automated failover and zero data loss.
+
+### 3. Storage & Zero-Trust Cloud Security
+- **Amazon S3 Private Document Vault**: Partitioned multi-tenant file storage (`students/{id}/{uuid}_{file}`). Direct public access is blocked; downloads are governed via short-lived (300s TTL) HMAC presigned URLs.
+- **AWS Secrets Manager**: Eliminates hardcoded environment secrets by dynamically injecting database credentials and the JWT signing key (`acedra/jwt`) at application startup.
+- **AWS IAM**: Strictly scoped, least-privilege task execution roles and security policies for ECS containers and CI/CD pipelines.
+- **Infrastructure as Code (IaC)**: Automated provisioning via [Terraform](infra/terraform/) or [CloudFormation](infra/cloudformation/ecr-oidc.yaml). Refer to the [AWS ECR OIDC Setup Guide](docs/aws-ecr-oidc-setup.md).
 
 ---
 
