@@ -204,30 +204,13 @@ Interactive documentation and real-time schema testing are available via Swagger
   <img src="docs/images/aws-architecture.png" alt="Acedra AWS Cloud Architecture — ap-south-1" width="100%" />
 </p>
 
-Acedra is engineered for high availability, zero-trust security, and horizontal scalability in the **AWS Asia Pacific (Mumbai) `ap-south-1`** region:
+Acedra is deployed in **AWS Asia Pacific (Mumbai) `ap-south-1`** using an isolated VPC network topology with strict security boundaries:
 
-### 1. DevOps & CI/CD Pipeline
-- **GitHub Repository** ([`TituJesh/Acedra`](https://github.com/TituJesh/Acedra)): Source code repository triggering automated CI pipelines on commits and PRs.
-- **GitHub Actions**: Automated test suite execution, code quality checks, and container builds.
-- **Docker Multi-Stage Build**: Lean, hardened container packaging with unprivileged user execution.
-- **Amazon ECR**: Private container registry hosting release images with automated vulnerability scanning on push.
-- **Deployment**: Automatic publishing and rolling updates to compute workloads.
-
-### 2. Virtual Private Cloud (`acedra-vpc` — `10.0.0.0/16`)
-- **Internet & Ingress Routing**: Public traffic enters via **`acedra-igw`** (Port 80 HTTP) routing directly to the application host. Developer management access is locked down via SSH (Port 22) restricted strictly to authorized IPs.
-- **Public Subnet (`acedra-public-subnet-1` — `10.0.1.0/24` | `ap-south-1a`)**:
-  - **Compute Host (`acedra-ec2`)**: `t3.micro` instance running Amazon Linux with Docker hosting the FastAPI application container.
-  - **Security Group (`acedra-ec2-sg`)**: Inbound HTTP (Port 80) from `0.0.0.0/0`, inbound SSH (Port 22) from restricted IPs.
-- **Private Subnets & Database Subnet Group (`acedra-rds-subnet-group`)**:
-  - **`acedra-private-subnet-1`** (`10.0.2.0/24` | `ap-south-1b`): Hosts **`acedra-db`** (PostgreSQL on AWS RDS `db.t4g.micro`, 20 GB gp2 storage, Port 5432).
-  - **`acedra-private-subnet-2`** (`10.0.3.0/24` | `ap-south-1a`): Associated subnet ensuring Multi-AZ DB Subnet Group compliance.
-  - **Security Group (`acedra-rds-sg`)**: Completely isolated from public access. Inbound traffic on Port 5432 is restricted exclusively to `acedra-ec2-sg`.
-
-### 3. Cloud Services, Observability & Security
-- **AWS Secrets Manager**: Eliminates hardcoded environment secrets by dynamically injecting database credentials, JWT keys, and application secrets at runtime.
-- **Amazon CloudWatch**: Centralized application logging, operational metrics collection, and health alarm thresholds.
-- **Amazon S3**: Partitioned private document vault with HMAC time-limited presigned URLs (300s TTL) and public access blocked.
-- **Infrastructure as Code (IaC)**: Automated provisioning via [Terraform](infra/terraform/) or [CloudFormation](infra/cloudformation/ecr-oidc.yaml). Refer to the [AWS ECR OIDC Setup Guide](docs/aws-ecr-oidc-setup.md).
+- **CI/CD Pipeline**: GitHub Actions builds and tests multi-stage Docker images, pushing to private **Amazon ECR** with automated vulnerability scanning on push.
+- **Compute (`acedra-ec2`)**: `t3.micro` instance in Public Subnet (`ap-south-1a`, `10.0.1.0/24`) behind `acedra-igw` (Port 80 HTTP, Port 22 SSH restricted to developer IP).
+- **Database (`acedra-db`)**: Managed PostgreSQL 18.3 on **Amazon RDS** (`db.t4g.micro`, 20GB gp2) isolated in Private Subnet (`ap-south-1b`, `10.0.2.0/24`), accessible strictly from `acedra-ec2-sg` on port 5432.
+- **Storage & Observability**: **Amazon S3** private document vault (HMAC presigned URLs), **AWS Secrets Manager** for zero-trust runtime credential injection, and **Amazon CloudWatch** for centralized logging and alarms.
+- **IaC Provisioning**: Automated deployment templates via [Terraform](infra/terraform/) or [CloudFormation](infra/cloudformation/ecr-oidc.yaml). Refer to the [AWS Setup Guide](docs/aws-ecr-oidc-setup.md).
 
 ---
 
