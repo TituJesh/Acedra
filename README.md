@@ -201,26 +201,32 @@ Interactive documentation and real-time schema testing are available via Swagger
 ## AWS Cloud Architecture
 
 <p align="center">
-  <img src="docs/images/aws-architecture.jpg" alt="AWS Cloud Architecture — Acedra Backend (ap-south-1)" width="100%" />
+  <img src="docs/images/aws-architecture.png" alt="Acedra AWS Cloud Architecture — ap-south-1" width="100%" />
 </p>
 
 Acedra is engineered for high availability, zero-trust security, and horizontal scalability in the **AWS Asia Pacific (Mumbai) `ap-south-1`** region:
 
-### 1. DevOps & Keyless CI/CD Pipeline
-- **GitHub Repository & Actions**: Automated linting, test suite execution, and container packaging on every commit.
-- **Keyless OIDC Authentication**: GitHub Actions federates directly with the **AWS IAM OIDC Provider** (`token.actions.githubusercontent.com`) using short-lived STS tokens—eliminating static, long-lived AWS secret access keys.
-- **Amazon ECR**: Private container registry hosting production multi-stage Docker images with automated vulnerability scanning on push and lifecycle cleanup rules.
+### 1. DevOps & CI/CD Pipeline
+- **GitHub Repository** ([`TituJesh/Acedra`](https://github.com/TituJesh/Acedra)): Source code repository triggering automated CI pipelines on commits and PRs.
+- **GitHub Actions**: Automated test suite execution, code quality checks, and container builds.
+- **Docker Multi-Stage Build**: Lean, hardened container packaging with unprivileged user execution.
+- **Amazon ECR**: Private container registry hosting release images with automated vulnerability scanning on push.
+- **Deployment**: Automatic publishing and rolling updates to compute workloads.
 
-### 2. Isolated Virtual Private Cloud (VPC)
-- **Client Ingress**: Web and mobile clients securely connect through the **AWS Internet Gateway (IGW)**.
-- **Public Subnet**: An internet-facing **Application Load Balancer (ALB)** manages incoming client requests, terminates SSL/TLS, and distributes traffic.
-- **Private Application Subnet**: **Amazon ECS / EC2** cluster running the containerized **FastAPI Backend** inside an **Auto Scaling Group (ASG)** to scale out/in based on demand.
-- **Private Database Subnet**: **Amazon RDS for PostgreSQL 16** with synchronous replication to a **Multi-AZ Standby** instance for automated failover and zero data loss.
+### 2. Virtual Private Cloud (`acedra-vpc` — `10.0.0.0/16`)
+- **Internet & Ingress Routing**: Public traffic enters via **`acedra-igw`** (Port 80 HTTP) routing directly to the application host. Developer management access is locked down via SSH (Port 22) restricted strictly to authorized IPs.
+- **Public Subnet (`acedra-public-subnet-1` — `10.0.1.0/24` | `ap-south-1a`)**:
+  - **Compute Host (`acedra-ec2`)**: `t3.micro` instance running Amazon Linux with Docker hosting the FastAPI application container.
+  - **Security Group (`acedra-ec2-sg`)**: Inbound HTTP (Port 80) from `0.0.0.0/0`, inbound SSH (Port 22) from restricted IPs.
+- **Private Subnets & Database Subnet Group (`acedra-rds-subnet-group`)**:
+  - **`acedra-private-subnet-1`** (`10.0.2.0/24` | `ap-south-1b`): Hosts **`acedra-db`** (PostgreSQL on AWS RDS `db.t4g.micro`, 20 GB gp2 storage, Port 5432).
+  - **`acedra-private-subnet-2`** (`10.0.3.0/24` | `ap-south-1a`): Associated subnet ensuring Multi-AZ DB Subnet Group compliance.
+  - **Security Group (`acedra-rds-sg`)**: Completely isolated from public access. Inbound traffic on Port 5432 is restricted exclusively to `acedra-ec2-sg`.
 
-### 3. Storage & Zero-Trust Cloud Security
-- **Amazon S3 Private Document Vault**: Partitioned multi-tenant file storage (`students/{id}/{uuid}_{file}`). Direct public access is blocked; downloads are governed via short-lived (300s TTL) HMAC presigned URLs.
-- **AWS Secrets Manager**: Eliminates hardcoded environment secrets by dynamically injecting database credentials and the JWT signing key (`acedra/jwt`) at application startup.
-- **AWS IAM**: Strictly scoped, least-privilege task execution roles and security policies for ECS containers and CI/CD pipelines.
+### 3. Cloud Services, Observability & Security
+- **AWS Secrets Manager**: Eliminates hardcoded environment secrets by dynamically injecting database credentials, JWT keys, and application secrets at runtime.
+- **Amazon CloudWatch**: Centralized application logging, operational metrics collection, and health alarm thresholds.
+- **Amazon S3**: Partitioned private document vault with HMAC time-limited presigned URLs (300s TTL) and public access blocked.
 - **Infrastructure as Code (IaC)**: Automated provisioning via [Terraform](infra/terraform/) or [CloudFormation](infra/cloudformation/ecr-oidc.yaml). Refer to the [AWS ECR OIDC Setup Guide](docs/aws-ecr-oidc-setup.md).
 
 ---
