@@ -1,6 +1,9 @@
 <div align="center">
 
-  <h1 align="center"> Acedra</h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/acedra-logo-white.png">
+    <img src="docs/images/acedra-logo.png" alt="Acedra Logo" width="180" />
+  </picture>
 
   <p align="center">
     <strong>Production-ready, cloud-native Student Information & Cloud Document Management System.</strong>
@@ -82,6 +85,9 @@ The application features an asynchronous **FastAPI** REST gateway with OAuth2 au
 
 ## Database Schema (ERD)
 
+<details>
+<summary><strong>View Database Schema (ERD)</strong></summary>
+
 ```mermaid
 erDiagram
     USERS ||--o| STUDENTS : "1:1 owns profile"
@@ -127,6 +133,8 @@ erDiagram
         datetime uploaded_at
     }
 ```
+
+</details>
 
 ---
 
