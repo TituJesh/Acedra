@@ -207,7 +207,7 @@ Interactive documentation and real-time schema testing are available via Swagger
 Acedra is deployed in **AWS Asia Pacific (Mumbai) `ap-south-1`** using an isolated VPC network topology with strict security boundaries:
 
 - **CI/CD Pipeline**: GitHub Actions builds and tests multi-stage Docker images, pushing to private **Amazon ECR** with automated vulnerability scanning on push.
-- **Compute (`acedra-ec2`)**: `t3.micro` instance in Public Subnet (`ap-south-1a`, `10.0.1.0/24`) behind `acedra-igw` (Port 80 HTTP, Port 22 SSH restricted to developer IP).
+- **Compute (`acedra-ec2`)**: `t2.micro` instance in Public Subnet (`ap-south-1a`, `10.0.1.0/24`) behind `acedra-igw` (Port 80 HTTP, Port 22 SSH restricted to developer IP).
 - **Database (`acedra-db`)**: Managed PostgreSQL 18.3 on **Amazon RDS** (`db.t4g.micro`, 20GB gp2) isolated in Private Subnet (`ap-south-1b`, `10.0.2.0/24`), accessible strictly from `acedra-ec2-sg` on port 5432.
 - **Storage & Observability**: **Amazon S3** private document vault (HMAC presigned URLs), **AWS Secrets Manager** for zero-trust runtime credential injection, and **Amazon CloudWatch** for centralized logging and alarms.
 - **IaC Provisioning**: Automated deployment templates via [Terraform](infra/terraform/) or [CloudFormation](infra/cloudformation/ecr-oidc.yaml). Refer to the [AWS Setup Guide](docs/aws-ecr-oidc-setup.md).
